@@ -58,7 +58,7 @@ func (m *Module) MountHTTP(r chi.Router) {
 }
 
 func (m *Module) Permissions() []platform.PermissionDef {
-	return []platform.PermissionDef{
+	return platform.WithMigrationPermissions("crm", []platform.PermissionDef{
 		{Key: "crm.contractor.view", Group: "CRM", Resource: "contractor", Action: "view", Description: "Просмотр доступных контрагентов"},
 		{Key: "crm.contractor.view_all", Group: "CRM", Resource: "contractor", Action: "view_all", Description: "Просмотр всей базы контрагентов (без правила ±3 дней)"},
 		{Key: "crm.contractor.create", Group: "CRM", Resource: "contractor", Action: "create", Description: "Создание контрагентов"},
@@ -102,7 +102,7 @@ func (m *Module) Permissions() []platform.PermissionDef {
 		{Key: "crm.banner.manage", Group: "CRM", Resource: "banner", Action: "manage", Description: "Управление баннерами (фото до/после для инженеров)"},
 		{Key: "crm.traffic_source.manage", Group: "CRM", Resource: "traffic_source", Action: "manage", Description: "Управление источниками трафика"},
 		{Key: "crm.setting.manage", Group: "CRM", Resource: "setting", Action: "manage", Description: "Управление глобальными настройками CRM"},
-	}
+	})
 }
 
 func (m *Module) Workers() []platform.PeriodicJob {

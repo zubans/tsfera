@@ -631,6 +631,12 @@ func (s *Service) ListRefItems(ctx context.Context, kind string) ([]RefItem, err
 }
 
 func (s *Service) CreateRefItem(ctx context.Context, auth *platform.AuthContext, kind, name string) (*RefItem, error) {
+	if auth != nil {
+		if err := requireCapability(auth, "crm.ref.manage", "crm.ref."+kind+".create"); err != nil {
+			return nil, err
+		}
+	}
+
 	kind = strings.TrimSpace(kind)
 	name = strings.TrimSpace(name)
 	if !isValidRefKind(kind) {
@@ -648,6 +654,24 @@ func (s *Service) CreateRefItem(ctx context.Context, auth *platform.AuthContext,
 }
 
 func (s *Service) DeleteRefItem(ctx context.Context, auth *platform.AuthContext, id int64) error {
+	if auth != nil && !auth.HasPermission("crm.ref.manage") {
+		allowed := false
+		for _, kind := range []string{"manufacturer", "equipment_type", "work_type", "special_note"} {
+			items, err := s.repo.ListRefItems(ctx, kind)
+			if err != nil {
+				return err
+			}
+			for _, item := range items {
+				if item.ID == id {
+					allowed = auth.HasPermission("crm.ref." + kind + ".delete")
+				}
+			}
+		}
+		if !allowed {
+			return platform.NewForbidden("Нет права удалять запись этого справочника")
+		}
+	}
+
 	if err := s.repo.SoftDeleteRefItem(ctx, id); err != nil {
 		return err
 	}
@@ -839,11 +863,14 @@ func (s *Service) ListApplications(ctx context.Context, auth *platform.AuthConte
 
 func (s *Service) ListCalendarEvents(ctx context.Context, auth *platform.AuthContext, from, to time.Time, engineerID *int64, subdivisionID *int64) ([]CalendarEvent, error) {
 	if auth != nil {
-		if !hasFullContractorAccess(auth) && !auth.HasPermission("crm.calendar.select_user") {
+		if !auth.HasPermission("crm.calendar.select_user") {
 			uid := auth.UserID
 			engineerID = &uid
 		}
-		if !hasWithoutSubdivisionAccess(auth) && auth.SubdivisionID != nil {
+		if !auth.HasPermission("crm.calendar.select_subdivision") {
+			if auth.SubdivisionID == nil {
+				return nil, platform.NewForbidden("Не назначено подразделение календаря")
+			}
 			subID := *auth.SubdivisionID
 			subdivisionID = &subID
 		}
@@ -1002,6 +1029,10 @@ func (s *Service) UpdateApplication(ctx context.Context, auth *platform.AuthCont
 	if existing == nil {
 		return nil, platform.NewNotFound("Заявка не найдена")
 	}
+	if auth != nil && in.IsComplete != existing.IsComplete && !auth.HasPermission("crm.application.close") {
+		return nil, platform.NewForbidden("Нет права закрывать или открывать заявку")
+	}
+
 	if err := s.validateApplicationSlot(ctx, &in, &id); err != nil {
 		return nil, err
 	}

@@ -222,6 +222,16 @@ func (s *Service) SaveAnalyticByCertificate(ctx context.Context, auth *platform.
 	if err != nil {
 		return nil, err
 	}
+	if auth != nil {
+		action := "create"
+		if existing != nil {
+			action = "update"
+		}
+		if err := requireCapability(auth, "crm.analytic.manage", "crm.analytic."+action); err != nil {
+			return nil, err
+		}
+	}
+
 	var uid *int64
 	if auth != nil {
 		idCopy := auth.UserID
@@ -431,8 +441,10 @@ func (s *Service) GetBannersForEngineerResolved(ctx context.Context) (map[string
 // --- Extended Reports (with User/Subdivision Resolution) ---
 
 func (s *Service) AmountActsReportFiltered(ctx context.Context, auth *platform.AuthContext, f ReportFilter) ([]AmountActsReportRow, error) {
-	if auth != nil && !hasWithoutSubdivisionAccess(auth) && auth.SubdivisionID != nil && len(f.SubdivisionIDs) == 0 {
-		f.SubdivisionIDs = []int64{*auth.SubdivisionID}
+	var scopeErr error
+	f, scopeErr = scopedReport(auth, f, "sum_executor")
+	if scopeErr != nil {
+		return nil, scopeErr
 	}
 	if f.EngineerID != nil && len(f.UserIDs) == 0 {
 		f.UserIDs = []int64{*f.EngineerID}
@@ -480,15 +492,19 @@ func (s *Service) ExpiredTasksReportFiltered(ctx context.Context, from, to *time
 }
 
 func (s *Service) SubdivisionSumsReport(ctx context.Context, auth *platform.AuthContext, f ReportFilter) ([]SubdivisionSumReportRow, error) {
-	if auth != nil && !hasWithoutSubdivisionAccess(auth) && auth.SubdivisionID != nil && len(f.SubdivisionIDs) == 0 {
-		f.SubdivisionIDs = []int64{*auth.SubdivisionID}
+	var scopeErr error
+	f, scopeErr = scopedReport(auth, f, "sum_subdivision")
+	if scopeErr != nil {
+		return nil, scopeErr
 	}
 	return s.repo.SubdivisionSumsReport(ctx, f)
 }
 
 func (s *Service) AmountSparePartsReport(ctx context.Context, auth *platform.AuthContext, f ReportFilter) (*AmountSparePartsReport, error) {
-	if auth != nil && !hasWithoutSubdivisionAccess(auth) && auth.SubdivisionID != nil && len(f.SubdivisionIDs) == 0 {
-		f.SubdivisionIDs = []int64{*auth.SubdivisionID}
+	var scopeErr error
+	f, scopeErr = scopedReport(auth, f, "amount_spare_parts")
+	if scopeErr != nil {
+		return nil, scopeErr
 	}
 	return s.repo.AmountSparePartsReport(ctx, f)
 }
@@ -505,8 +521,10 @@ func (s *Service) ContractorsReport(ctx context.Context, auth *platform.AuthCont
 }
 
 func (s *Service) EngineersReport(ctx context.Context, auth *platform.AuthContext, f ReportFilter) ([]EngineerReportRow, error) {
-	if auth != nil && !hasWithoutSubdivisionAccess(auth) && auth.SubdivisionID != nil && len(f.SubdivisionIDs) == 0 {
-		f.SubdivisionIDs = []int64{*auth.SubdivisionID}
+	var scopeErr error
+	f, scopeErr = scopedReport(auth, f, "engineers")
+	if scopeErr != nil {
+		return nil, scopeErr
 	}
 	rows, err := s.repo.EngineersReport(ctx, f)
 	if err != nil {

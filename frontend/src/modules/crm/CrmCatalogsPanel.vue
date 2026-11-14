@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   NSpace,
   NCard,
@@ -26,6 +27,11 @@ import type {
   CRMEnums
 } from '@/shared/types/domain'
 
+const auth = useAuthStore()
+function can(resource: string, action: string): boolean {
+  const group = resource === 'analytic_question' ? 'analytic' : resource
+  return auth.hasPerm(`crm.${group}.manage`) || auth.hasPerm(`crm.${resource}.${action}`)
+}
 const errorMsg = ref('')
 const okMsg = ref('')
 
@@ -303,8 +309,8 @@ const tsColumns: DataTableColumns<TrafficSource> = [
     width: 160,
     render: (r) =>
       h(NSpace, { size: 6 }, () => [
-        h(NButton, { size: 'tiny', onClick: () => openEditTs(r) }, () => 'Изм.'),
-        h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteTs(r.id) }, () => 'Уд.')
+        can('traffic_source', 'update') ? h(NButton, { size: 'tiny', onClick: () => openEditTs(r) }, () => 'Изм.') : null,
+        can('traffic_source', 'delete') ? h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteTs(r.id) }, () => 'Уд.') : null
       ])
   }
 ]
@@ -327,7 +333,7 @@ const questionColumns: DataTableColumns<AnalyticQuestion> = [
     title: '',
     key: 'act',
     width: 90,
-    render: (r) => h(NButton, { size: 'tiny', onClick: () => openEditQuestion(r) }, () => 'Изм.')
+    render: (r) => can('analytic_question', 'update') ? h(NButton, { size: 'tiny', onClick: () => openEditQuestion(r) }, () => 'Изм.') : null
   }
 ]
 
@@ -350,8 +356,8 @@ const bannerColumns: DataTableColumns<Banner> = [
     width: 150,
     render: (b) =>
       h(NSpace, { size: 6 }, () => [
-        h(NButton, { size: 'tiny', onClick: () => openEditBanner(b) }, () => 'Изм.'),
-        h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteBanner(b.id) }, () => 'Уд.')
+        can('banner', 'update') ? h(NButton, { size: 'tiny', onClick: () => openEditBanner(b) }, () => 'Изм.') : null,
+        can('banner', 'delete') ? h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteBanner(b.id) }, () => 'Уд.') : null
       ])
   }
 ]
@@ -364,25 +370,25 @@ const bannerColumns: DataTableColumns<Banner> = [
 
     <NCard title="Источники трафика" size="small">
       <template #header-extra>
-        <NButton size="small" type="primary" @click="openCreateTs">+ Источник</NButton>
+        <NButton v-if="can('traffic_source', 'create')" size="small" type="primary" @click="openCreateTs">+ Источник</NButton>
       </template>
       <NDataTable :columns="tsColumns" :data="trafficSources" size="small" :pagination="{ pageSize: 8 }" />
     </NCard>
 
     <NCard title="Вопросы контроля качества (Аналитика актов)" size="small">
       <template #header-extra>
-        <NButton size="small" type="primary" @click="openCreateQuestion">+ Вопрос</NButton>
+        <NButton v-if="can('analytic_question', 'create')" size="small" type="primary" @click="openCreateQuestion">+ Вопрос</NButton>
       </template>
       <NDataTable :columns="questionColumns" :data="questions" size="small" :pagination="{ pageSize: 8 }" />
     </NCard>
 
     <NCard title="Баннеры (памятки до/после создания акта)" size="small">
       <template #header-extra>
-        <NButton size="small" type="primary" @click="openCreateBanner">+ Баннер</NButton>
+        <NButton v-if="can('banner', 'create')" size="small" type="primary" @click="openCreateBanner">+ Баннер</NButton>
       </template>
       <NDataTable :columns="bannerColumns" :data="banners" size="small" :pagination="{ pageSize: 8 }" />
       <NDivider>Подборки баннеров для инженеров (`app.banners_for_engineer`)</NDivider>
-      <NSpace vertical :size="8">
+      <NSpace v-if="can('setting', 'update')" vertical :size="8">
         <NForm label-placement="left" label-width="230" size="small">
           <NFormItem label="Показывать ДО создания акта">
             <NSelect

@@ -147,6 +147,7 @@ def main() -> int:
                 item['disposition']='excluded_runtime_state'
             else:
                 raise ValueError('Unmapped source table: '+item['source'])
+        report['permissions'] = runner.json(stage, "SELECT r.name,r.description,array_agg(p.permission_key ORDER BY p.permission_key) FILTER(WHERE p.permission_key IS NOT NULL) permissions FROM users_roles r LEFT JOIN users_role_permissions p ON p.role_name=r.name WHERE r.name LIKE 'legacy_%' GROUP BY r.name,r.description ORDER BY r.name")
         report['target_counts'] = {}
         for table in runner.json(stage, "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"):
             name = table['tablename']

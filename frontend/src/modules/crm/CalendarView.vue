@@ -792,6 +792,7 @@ onMounted(async () => {
             <strong>Оценка качества:</strong>
             <NSpace align="center" style="margin-top: 6px">
               <NRate
+                :disabled="!auth.hasPerm('crm.application.rating')"
                 :value="selectedEvent.rating ?? 0"
                 @update:value="(v) => selectedEvent && rateApp(selectedEvent, v)"
               />
@@ -815,7 +816,7 @@ onMounted(async () => {
               Редактировать / Перенести
             </NButton>
             <NButton
-              v-if="auth.hasPerm('crm.application.update')"
+              v-if="auth.hasPerm('crm.application.close')"
               :type="selectedEvent.is_complete ? 'warning' : 'success'"
               secondary
               @click="toggleCompleteApp(selectedEvent, !selectedEvent.is_complete)"

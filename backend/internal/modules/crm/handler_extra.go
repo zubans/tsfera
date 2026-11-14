@@ -769,6 +769,22 @@ func (h *Handler) saveAppSetting(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, h.logger, err)
 		return
 	}
+	items, err := h.svc.ListAppSettings(r.Context())
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	action := "create"
+	for _, item := range items {
+		if item.Key == chi.URLParam(r, "key") {
+			action = "update"
+		}
+	}
+	if err := requireCapability(ac, "crm.setting.manage", "crm.setting."+action); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+
 	out, err := h.svc.SaveAppSetting(r.Context(), ac, chi.URLParam(r, "key"), in.Name, in.Data)
 	if err != nil {
 		platform.WriteError(w, h.logger, err)

@@ -400,7 +400,7 @@ const userColumns: DataTableColumns<User> = [
               { label: 'Оборудование инженера', value: 'engineer_equipment' }
             ]"
           />
-          <NSpace v-if="auth.hasPerm('admin.user.update')">
+          <NSpace v-if="auth.hasPerm(`admin.inventory.${inventoryCategory}.create`)">
             <NInput v-model:value="newInventoryName" placeholder="Наименование..." style="width: 240px" @keyup.enter="createInventoryItem" />
             <NButton type="primary" @click="createInventoryItem">Добавить</NButton>
           </NSpace>
@@ -416,7 +416,7 @@ const userColumns: DataTableColumns<User> = [
               key: 'del',
               width: 100,
               render: (i: InventoryItem) =>
-                auth.hasPerm('admin.user.update')
+                auth.hasPerm(`admin.inventory.${i.category}.delete`)
                   ? h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteInventoryItem(i.id) }, () => 'Удалить')
                   : '—'
             }

@@ -49,6 +49,20 @@ import type {
   Banner
 } from '@/shared/types/domain'
 
+const commentApp = ref<Application | null>(null)
+const commentText = ref('')
+const commentOpen = ref(false)
+async function saveOnlyComment() {
+  if (!commentApp.value) return
+  errorMsg.value = ''
+  try {
+    await requestJSON(`/api/v1/crm/applications/${commentApp.value.id}/comment`, { method: 'PATCH', body: JSON.stringify({ comment: commentText.value }) })
+    commentApp.value.comment = commentText.value
+    commentOpen.value = false
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Не удалось сохранить комментарий'
+  }
+}
 const importedDetails = ref<Application | Certificate | null>(null)
 const importedOpen = ref(false)
 function showImportedDetails(record: Application | Certificate) {
@@ -557,6 +571,7 @@ async function askAIAboutCert(cert: Certificate) {
 }
 
 const appColumns: DataTableColumns<Application> = [
+  { title: 'Комментарий', key: 'comment_action', render: (r) => auth.hasPerm('crm.application.update_comment') ? h(NButton, { size: 'tiny', onClick: () => { commentApp.value = r; commentText.value = r.comment; commentOpen.value = true } }, { default: () => 'Изменить комментарий' }) : r.comment },
   { title: 'Номер', key: 'number', render: (r) => r.number ?? r.id },
   { title: 'Связи и данные', key: 'details', render: (r) => h(NButton, { size: 'tiny', onClick: () => showImportedDetails(r) }, { default: () => r.incomplete ? 'Неполная запись' : 'Подробнее' }) },
   { title: 'ID', key: 'id', width: 65 },
@@ -624,7 +639,7 @@ const appColumns: DataTableColumns<Application> = [
             },
             { default: () => '+ Акт ТО' }
           ),
-        auth.hasPerm('crm.application.update') &&
+        auth.hasPerm('crm.application.close') &&
           h(
             NButton,
             {
@@ -680,7 +695,7 @@ const certColumns: DataTableColumns<Certificate> = [
           },
           { default: () => 'Печать' }
         ),
-        auth.hasPerm('crm.analytic.manage') &&
+        (auth.hasPerm('crm.analytic.manage') || auth.hasPerm('crm.analytic.create') || auth.hasPerm('crm.analytic.update')) &&
           h(
             NButton,
             {
@@ -718,7 +733,7 @@ const analyticColumns: DataTableColumns<Analytic> = [
     key: 'rating',
     width: 170,
     render: (r) =>
-      auth.hasPerm('crm.analytic.manage')
+      (auth.hasPerm('crm.analytic.manage') || auth.hasPerm('crm.analytic.create') || auth.hasPerm('crm.analytic.update'))
         ? h(NRate, {
             value: r.rating,
             count: 5,
@@ -830,7 +845,7 @@ onMounted(async () => {
       <NTabPane name="certificates" tab="Акты выполненных работ">
         <NSpace justify="space-between" style="margin-bottom: 12px">
           <NSpace>
-            <NButton
+            <NButton v-if="auth.hasPerm('crm.certificate.export')"
               secondary
               @click="
                 void runExport(
@@ -841,7 +856,7 @@ onMounted(async () => {
             >
               Экспорт XLSX
             </NButton>
-            <NButton secondary @click="exportCSV">Экспорт в CSV</NButton>
+            <NButton v-if="auth.hasPerm('crm.certificate.export')" secondary @click="exportCSV">Экспорт в CSV</NButton>
           </NSpace>
           <NButton
             v-if="auth.hasPerm('crm.certificate.create')"
@@ -883,6 +898,10 @@ onMounted(async () => {
       </NTabPane>
     </NTabs>
 
+    <NModal v-model:show="commentOpen" preset="card" title="Комментарий заявки" style="width: 600px; max-width: 96vw">
+      <NInput v-model:value="commentText" type="textarea" />
+      <NButton type="primary" @click="saveOnlyComment">Сохранить комментарий</NButton>
+    </NModal>
     <NModal v-model:show="importedOpen" preset="card" title="Данные документа" style="width: 900px; max-width: 96vw">
       <BusinessDataDetails v-if="importedDetails" :record="importedDetails" />
     </NModal>

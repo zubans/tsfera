@@ -64,19 +64,19 @@ func (h *Handler) Mount(r chi.Router) {
 			cr.With(platform.RequirePermission("crm.equipment.create")).Post("/equipments", h.createEquipment)
 			cr.With(platform.RequirePermission("crm.address.update")).Post("/address-equipments", h.attachAddressEquipment)
 			cr.With(platform.RequirePermission("crm.address.update")).Delete("/address-equipments/{id}", h.detachAddressEquipment)
-			cr.With(platform.RequirePermission("crm.equipment.view")).Get("/refs/{kind}", h.listRefItems)
-			cr.With(platform.RequirePermission("crm.ref.manage")).Post("/refs/{kind}", h.createRefItem)
-			cr.With(platform.RequirePermission("crm.ref.manage")).Delete("/refs/{kind}/{id}", h.deleteRefItem)
+			cr.Get("/refs/{kind}", h.listRefItems)
+			cr.Post("/refs/{kind}", h.createRefItem)
+			cr.Delete("/refs/{kind}/{id}", h.deleteRefItem)
 
 			// Источники трафика
 			cr.Get("/traffic-sources", h.listTrafficSources)
-			cr.With(platform.RequirePermission("crm.traffic_source.manage")).Post("/traffic-sources", h.createTrafficSource)
-			cr.With(platform.RequirePermission("crm.traffic_source.manage")).Put("/traffic-sources/{id}", h.updateTrafficSource)
-			cr.With(platform.RequirePermission("crm.traffic_source.manage")).Delete("/traffic-sources/{id}", h.deleteTrafficSource)
+			cr.With(platform.RequireAnyPermission("crm.traffic_source.manage", "crm.traffic_source.create")).Post("/traffic-sources", h.createTrafficSource)
+			cr.With(platform.RequireAnyPermission("crm.traffic_source.manage", "crm.traffic_source.update")).Put("/traffic-sources/{id}", h.updateTrafficSource)
+			cr.With(platform.RequireAnyPermission("crm.traffic_source.manage", "crm.traffic_source.delete")).Delete("/traffic-sources/{id}", h.deleteTrafficSource)
 
 			// Договоры ТО
 			cr.With(platform.RequirePermission("crm.contract.view")).Get("/contracts", h.listContracts)
-			cr.With(platform.RequirePermission("crm.contract.view")).Get("/contracts/export", h.exportContracts)
+			cr.With(platform.RequirePermission("crm.contract.export")).Get("/contracts/export", h.exportContracts)
 			cr.With(platform.RequirePermission("crm.contract.view")).Get("/contracts/{id}", h.getContract)
 			cr.With(platform.RequirePermission("crm.contract.view")).Get("/contracts/{id}/print", h.printContract)
 			cr.With(platform.RequirePermission("crm.contract.create")).Post("/contracts", h.createContract)
@@ -87,19 +87,21 @@ func (h *Handler) Mount(r chi.Router) {
 			// Заявки и Календарь
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications", h.listApplications)
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications/export", h.exportApplications)
-			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications/calendar", h.listCalendarEvents)
+			cr.With(platform.RequirePermission("crm.calendar.view")).Get("/applications/calendar", h.listCalendarEvents)
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications/{id}", h.getApplication)
 			cr.With(platform.RequirePermission("crm.application.create")).Post("/applications", h.createApplication)
 			cr.With(platform.RequirePermission("crm.application.update")).Put("/applications/{id}", h.updateApplication)
-			cr.With(platform.RequirePermission("crm.application.update")).Post("/applications/{id}/complete", h.completeApplication)
-			cr.With(platform.RequirePermission("crm.application.update")).Patch("/applications/{id}/rating", h.rateApplication)
+			cr.With(platform.RequirePermission("crm.application.close")).Post("/applications/{id}/complete", h.completeApplication)
+			cr.With(platform.RequirePermission("crm.application.rating")).Patch("/applications/{id}/rating", h.rateApplication)
 			cr.With(platform.RequirePermission("crm.application.update")).Post("/applications/{id}/notes-viewed", h.markApplicationNotesViewed)
 			cr.With(platform.RequirePermission("crm.application.delete")).Delete("/applications/{id}", h.deleteApplication)
 
+			cr.With(platform.RequirePermission("crm.application.update_comment")).Patch("/applications/{id}/comment", h.updateApplicationComment)
+
 			// Акты выполненных работ, печать и экспорт
 			cr.With(platform.RequirePermission("crm.certificate.view")).Get("/certificates", h.listCertificates)
-			cr.With(platform.RequirePermission("crm.certificate.view")).Get("/certificates/export", h.exportCertificates)
-			cr.With(platform.RequirePermission("crm.certificate.view")).Get("/certificates/export.csv", h.exportCertificatesCSV)
+			cr.With(platform.RequirePermission("crm.certificate.export")).Get("/certificates/export", h.exportCertificates)
+			cr.With(platform.RequirePermission("crm.certificate.export")).Get("/certificates/export.csv", h.exportCertificatesCSV)
 			cr.With(platform.RequirePermission("crm.certificate.view")).Get("/certificates/{id}", h.getCertificate)
 			cr.With(platform.RequirePermission("crm.certificate.view")).Get("/certificates/{id}/print", h.printCertificate)
 			cr.With(platform.RequirePermission("crm.certificate.create")).Post("/certificates", h.createCertificate)
@@ -108,28 +110,28 @@ func (h *Handler) Mount(r chi.Router) {
 
 			// Аналитика и вопросы контроля качества
 			cr.With(platform.RequirePermission("crm.analytic.view")).Get("/analytic-questions", h.listAnalyticQuestions)
-			cr.With(platform.RequirePermission("crm.analytic.manage")).Post("/analytic-questions", h.createAnalyticQuestion)
-			cr.With(platform.RequirePermission("crm.analytic.manage")).Put("/analytic-questions/{id}", h.updateAnalyticQuestion)
+			cr.With(platform.RequireAnyPermission("crm.analytic.manage", "crm.analytic_question.create")).Post("/analytic-questions", h.createAnalyticQuestion)
+			cr.With(platform.RequireAnyPermission("crm.analytic.manage", "crm.analytic_question.update")).Put("/analytic-questions/{id}", h.updateAnalyticQuestion)
 			cr.With(platform.RequirePermission("crm.analytic.view")).Get("/analytics", h.listAnalytics)
 			cr.With(platform.RequirePermission("crm.analytic.view")).Get("/analytics/export", h.exportAnalytics)
 			cr.With(platform.RequirePermission("crm.analytic.view")).Get("/analytics/{id}", h.getAnalytic)
-			cr.With(platform.RequirePermission("crm.analytic.manage")).Post("/analytics/by-certificate/{certificateId}", h.saveAnalyticByCertificate)
-			cr.With(platform.RequirePermission("crm.analytic.manage")).Patch("/analytics/{id}/rating", h.setAnalyticRating)
+			cr.With(platform.RequireAnyPermission("crm.analytic.manage", "crm.analytic.create", "crm.analytic.update")).Post("/analytics/by-certificate/{certificateId}", h.saveAnalyticByCertificate)
+			cr.With(platform.RequireAnyPermission("crm.analytic.manage", "crm.analytic.update")).Patch("/analytics/{id}/rating", h.setAnalyticRating)
 
 			// Задачи и настройки пула
 			cr.With(platform.RequirePermission("crm.task.view")).Get("/tasks", h.listTasks)
 			cr.With(platform.RequirePermission("crm.task.view")).Get("/tasks/{id}", h.getTask)
 			cr.With(platform.RequirePermission("crm.task.create")).Post("/tasks", h.createTask)
 			cr.With(platform.RequirePermission("crm.task.update")).Put("/tasks/{id}", h.updateTask)
-			cr.With(platform.RequirePermission("crm.task.update")).Post("/tasks/{id}/execute", h.executeTask)
+			cr.With(platform.RequirePermission("crm.task.execute")).Post("/tasks/{id}/execute", h.executeTask)
 			cr.With(platform.RequirePermission("crm.task.delete")).Delete("/tasks/{id}", h.deleteTask)
-			cr.With(platform.RequirePermission("crm.pool.manage")).Get("/pool-settings", h.listPoolSettings)
-			cr.With(platform.RequirePermission("crm.pool.manage")).Post("/pool-settings", h.savePoolSetting)
+			cr.With(platform.RequireAnyPermission("crm.pool.manage", "crm.pool.view")).Get("/pool-settings", h.listPoolSettings)
+			cr.With(platform.RequireAnyPermission("crm.pool.manage", "crm.pool.update")).Post("/pool-settings", h.savePoolSetting)
 			cr.With(platform.RequirePermission("crm.pool.manage")).Post("/pool-settings/run", h.runTaskJobs)
 
 			// Звонки, пул пропущенных, SoftPhone, Подразделения, SIP
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls", h.listCalls)
-			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls/export", h.exportCalls)
+			cr.With(platform.RequirePermission("crm.call.export")).Get("/calls/export", h.exportCalls)
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls/current", h.getCurrentCall)
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls/{id}", h.getCallCard)
 			cr.With(platform.RequirePermission("crm.call.update")).Put("/calls/{id}", h.updateCallCard)
@@ -139,33 +141,33 @@ func (h *Handler) Mount(r chi.Router) {
 			cr.With(platform.RequirePermission("crm.call.update")).Post("/miss-calls/{callId}/viewed", h.markMissCallViewed)
 			cr.Get("/softphone/config", h.softphoneConfig)
 			cr.With(platform.RequirePermission("crm.subdivision.view")).Get("/subdivisions", h.listSubdivisions)
-			cr.With(platform.RequirePermission("crm.subdivision.manage")).Post("/subdivisions", h.createSubdivision)
-			cr.With(platform.RequirePermission("crm.subdivision.manage")).Put("/subdivisions/{id}", h.updateSubdivision)
-			cr.With(platform.RequirePermission("crm.subdivision.manage")).Delete("/subdivisions/{id}", h.deleteSubdivision)
-			cr.With(platform.RequirePermission("crm.sip.manage")).Get("/sip-accounts", h.listSipAccounts)
-			cr.With(platform.RequirePermission("crm.sip.manage")).Post("/sip-accounts", h.saveSipAccount)
+			cr.With(platform.RequireAnyPermission("crm.subdivision.manage", "crm.subdivision.create")).Post("/subdivisions", h.createSubdivision)
+			cr.With(platform.RequireAnyPermission("crm.subdivision.manage", "crm.subdivision.update")).Put("/subdivisions/{id}", h.updateSubdivision)
+			cr.With(platform.RequireAnyPermission("crm.subdivision.manage", "crm.subdivision.delete")).Delete("/subdivisions/{id}", h.deleteSubdivision)
+			cr.With(platform.RequireAnyPermission("crm.sip.manage", "crm.sip.view")).Get("/sip-accounts", h.listSipAccounts)
+			cr.With(platform.RequireAnyPermission("crm.sip.manage", "crm.sip.create", "crm.sip.update")).Post("/sip-accounts", h.saveSipAccount)
 			cr.Get("/sip-accounts/select-with-user-name", h.listSipUsersSelect)
 
 			// Баннеры и системные настройки приложения
 			cr.Get("/banners/for-engineer", h.getBannersForEngineer)
-			cr.With(platform.RequirePermission("crm.banner.manage")).Get("/banners", h.listBanners)
-			cr.With(platform.RequirePermission("crm.banner.manage")).Post("/banners", h.createBanner)
-			cr.With(platform.RequirePermission("crm.banner.manage")).Put("/banners/{id}", h.updateBanner)
-			cr.With(platform.RequirePermission("crm.banner.manage")).Delete("/banners/{id}", h.deleteBanner)
-			cr.With(platform.RequirePermission("crm.setting.manage")).Get("/app-settings", h.listAppSettings)
-			cr.Get("/app-settings/{key}", h.getAppSetting)
-			cr.With(platform.RequirePermission("crm.setting.manage")).Put("/app-settings/{key}", h.saveAppSetting)
+			cr.With(platform.RequireAnyPermission("crm.banner.manage", "crm.banner.view")).Get("/banners", h.listBanners)
+			cr.With(platform.RequireAnyPermission("crm.banner.manage", "crm.banner.create")).Post("/banners", h.createBanner)
+			cr.With(platform.RequireAnyPermission("crm.banner.manage", "crm.banner.update")).Put("/banners/{id}", h.updateBanner)
+			cr.With(platform.RequireAnyPermission("crm.banner.manage", "crm.banner.delete")).Delete("/banners/{id}", h.deleteBanner)
+			cr.With(platform.RequireAnyPermission("crm.setting.manage", "crm.setting.view")).Get("/app-settings", h.listAppSettings)
+			cr.With(platform.RequireAnyPermission("crm.setting.manage", "crm.setting.view")).Get("/app-settings/{key}", h.getAppSetting)
+			cr.With(platform.RequireAnyPermission("crm.setting.manage", "crm.setting.update", "crm.setting.create")).Put("/app-settings/{key}", h.saveAppSetting)
 
 			// Отчёты, аудит, уведомления, пользовательские настройки, справочные списки
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/amount-acts", h.amountActsReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/expired-tasks", h.expiredTasksReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/sum-by-subdivision", h.subdivisionSumsReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/amount-spare-parts", h.amountSparePartsReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/call-conversion", h.callConversionReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/contractors", h.contractorsReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/contractors/export", h.exportContractorsReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/engineers", h.engineersReport)
-			cr.With(platform.RequirePermission("crm.report.view")).Get("/reports/traffic-sources", h.trafficSourcesReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.sum_executor.view")).Get("/reports/amount-acts", h.amountActsReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.expired_tasks.view")).Get("/reports/expired-tasks", h.expiredTasksReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.sum_subdivision.view")).Get("/reports/sum-by-subdivision", h.subdivisionSumsReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.amount_spare_parts.view")).Get("/reports/amount-spare-parts", h.amountSparePartsReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.call_conversion.view")).Get("/reports/call-conversion", h.callConversionReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.contractors.view")).Get("/reports/contractors", h.contractorsReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.contractors.view")).Get("/reports/contractors/export", h.exportContractorsReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.engineers.view")).Get("/reports/engineers", h.engineersReport)
+			cr.With(platform.RequireAnyPermission("crm.report.view", "crm.report.traffic_sources.view")).Get("/reports/traffic-sources", h.trafficSourcesReport)
 			cr.Get("/change-logs/{entityType}/{id}", h.listChangeLogs)
 			cr.Get("/notifications", h.listNotifications)
 			cr.Post("/notifications/{id}/read", h.markNotificationRead)
@@ -546,6 +548,12 @@ func (h *Handler) detachAddressEquipment(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) listRefItems(w http.ResponseWriter, r *http.Request) {
+	ac, _ := platform.AuthFromContext(r.Context())
+	if err := requireCapability(ac, "crm.ref.manage", "crm.equipment.view", "crm.ref."+chi.URLParam(r, "kind")+".view"); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+
 	items, err := h.svc.ListRefItems(r.Context(), chi.URLParam(r, "kind"))
 	if err != nil {
 		platform.WriteError(w, h.logger, err)
@@ -1251,6 +1259,15 @@ func (h *Handler) saveSipAccount(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, h.logger, err)
 		return
 	}
+	action := "create"
+	if in.ID != 0 {
+		action = "update"
+	}
+	if err := requireCapability(ac, "crm.sip.manage", "crm.sip."+action); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+
 	out, err := h.svc.SaveSipAccount(r.Context(), ac, in)
 	if err != nil {
 		platform.WriteError(w, h.logger, err)

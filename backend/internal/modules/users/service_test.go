@@ -382,7 +382,7 @@ func TestUserHandlerAuthAndReadOnlyTokenEnforcement(t *testing.T) {
 func TestMobileAuthLifecycleSubdivisionScopeAndInventory(t *testing.T) {
 	repo := newStubRepo()
 	sub1, sub2 := int64(1), int64(2)
-	repo.roles["disp"] = &Role{Name: "disp", Permissions: []string{"admin.user.view", "admin.user.update"}}
+	repo.roles["disp"] = &Role{Name: "disp", Permissions: []string{"admin.user.view", "admin.user.update", "admin.inventory.work_clothes.view", "admin.inventory.work_clothes.create", "admin.inventory.work_clothes.delete"}}
 	hash, _ := HashPassword("secret99")
 	repo.users[10] = &User{ID: 10, Username: "mgr1", PasswordHash: hash, SubdivisionID: &sub1, Roles: []string{"disp"}, Active: true}
 	repo.users[11] = &User{ID: 11, Username: "eng1", PasswordHash: hash, SubdivisionID: &sub1, Roles: []string{"disp"}, Active: true}

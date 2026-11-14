@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuthStore } from '@/stores/auth'
 import { ref, computed, watch, onMounted } from 'vue'
 import {
   NSpace,
@@ -48,7 +49,7 @@ type ReportKey =
   | 'engineers'
   | 'traffic-sources'
 
-const reportOptions: { label: string; value: ReportKey }[] = [
+const allReportOptions: { label: string; value: ReportKey }[] = [
   { label: 'Выручка по актам и договорам (инженеры)', value: 'amount-acts' },
   { label: 'Суммы по филиалам и способам оплаты', value: 'sum-by-subdivision' },
   { label: 'Расширенный отчёт по инженерам', value: 'engineers' },
@@ -59,6 +60,12 @@ const reportOptions: { label: string; value: ReportKey }[] = [
   { label: 'Просроченные задачи', value: 'expired-tasks' }
 ]
 
+const auth = useAuthStore()
+const reportPermission: Record<ReportKey, string> = {
+  'amount-acts': 'sum_executor', 'expired-tasks': 'expired_tasks', 'sum-by-subdivision': 'sum_subdivision',
+  'amount-spare-parts': 'amount_spare_parts', 'call-conversion': 'call_conversion', contractors: 'contractors', engineers: 'engineers', 'traffic-sources': 'traffic_sources'
+}
+const reportOptions = computed(() => allReportOptions.filter((option) => auth.hasPerm('crm.report.view') || auth.hasPerm(`crm.report.${reportPermission[option.value]}.view`)))
 const activeReport = ref<ReportKey>('amount-acts')
 const range = ref('')
 const subdivisionIds = ref<number[]>([])
@@ -91,6 +98,10 @@ function buildQueryString(): string {
 }
 
 async function loadActiveReport() {
+  if (!reportOptions.value.some((option) => option.value === activeReport.value)) {
+    if (!reportOptions.value.length) return
+    activeReport.value = reportOptions.value[0]!.value
+  }
   loading.value = true
   errorMsg.value = ''
   const qs = buildQueryString()

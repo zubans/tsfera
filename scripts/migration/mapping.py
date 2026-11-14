@@ -169,31 +169,13 @@ def build_mapping(runner, dsn: str, permission_map: dict) -> tuple[str, dict, li
         'entity_type':f"COALESCE((SELECT CASE regexp_replace(class_name, '^.*[\\\\]', '') {cases} ELSE class_name END FROM legacy_import.enum_entity WHERE id=s.entity_type_id),'unknown')",
         'action':"CASE WHEN s.is_insert THEN 'create' ELSE 'update' END",
         'changes':"s.changed_attributes::jsonb"})
-    # Never equate legacy administrator names to the unrestricted superadmin role.
-    permissions = {x['key'] for x in runner.json(dsn,'SELECT key FROM users_permissions')}
-    items = runner.json(dsn,'SELECT id,name,type FROM legacy_import.sys_auth_item ORDER BY id')
-    for item in items:
-        old = item['name']; role = 'legacy_'+str(item['id'])
-        statements.append(f"INSERT INTO users_roles(name,description,is_system) VALUES ({lit(role)},{lit(old)},false);")
-        values = permission_map.get(old, [old] if old in permissions else [])
-        if not isinstance(values,list) or any(p not in permissions for p in values): raise ValueError('Invalid permission mapping for '+old)
-        if item['type']==2 and not values and old not in permission_map: warnings.append('Unmapped permission: '+old)
-        for value in values:
-            statements.append(f"INSERT INTO users_role_permissions VALUES ({lit(role)},{lit(value)}) ON CONFLICT DO NOTHING;")
-    statements.append('''WITH RECURSIVE tree(root,child) AS (
-      SELECT name,name FROM legacy_import.sys_auth_item
-      UNION SELECT t.root,c.child FROM tree t JOIN legacy_import.sys_auth_item_child c ON c.parent=t.child
-    ) INSERT INTO users_role_permissions(role_name,permission_key)
-    SELECT DISTINCT 'legacy_'||parent.id::text,p.permission_key FROM tree t
-    JOIN legacy_import.sys_auth_item parent ON parent.name=t.root
-    JOIN legacy_import.sys_auth_item child ON child.name=t.child
-    JOIN users_role_permissions p ON p.role_name='legacy_'||child.id::text ON CONFLICT DO NOTHING;
-    INSERT INTO users_user_roles(user_id,role_name)
-    SELECT a.user_id,'legacy_'||i.id::text FROM legacy_import.sys_auth_assignment a JOIN legacy_import.sys_auth_item i ON i.name=a.item_name;
-    ''')
+    from permissions import build_permissions
+    permission_sql, permission_warnings = build_permissions(runner, dsn, permission_map)
+    statements.extend(permission_sql)
+    warnings.extend(permission_warnings)
     for old in ['sys_auth_item','sys_auth_assignment','sys_auth_item_child']: mapped[old]='json:users_roles'
     # Keep all original settings/queues/change logs losslessly; do not reinterpret old PHP routes or state.
-    warnings.append('Archive-only operational state: sys_token, sys_auth_rule, reg_task_pool, reg_queue_user, reg_user_setting; not activated automatically.')
+    warnings.append('Excluded runtime state: sys_token, sys_auth_rule, reg_task_pool, reg_queue_user, reg_user_setting; not imported.')
     warnings.append('File metadata imported; payloads require external storage. SIP credentials are not present in this dump.')
     warnings.append('Legacy call IDs use legacy:<row id>; original remote_call_id remains in raw_payload. Historical calls are not live provider calls.')
     statements.append('''DO $$ DECLARE r record; n bigint; BEGIN

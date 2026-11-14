@@ -183,7 +183,7 @@ async function loadAdminAI() {
     requestJSON<AIModel[]>('/api/v1/ai/models'),
     auth.hasPerm('ai.admin') ? requestJSON<AIProvider[]>('/api/v1/ai/providers') : Promise.resolve([]),
     auth.hasPerm('ai.admin') ? requestJSON<AIUsageLog[]>('/api/v1/ai/usage?limit=50') : Promise.resolve([]),
-    auth.hasPerm('admin.user.view')
+    auth.hasPerm('admin.model_access.manage')
       ? requestJSON<ModelAccessPolicy[]>('/api/v1/admin/model-access')
       : Promise.resolve([]),
     requestJSON<UserBrief[]>('/api/v1/crm/workers')
@@ -268,7 +268,7 @@ const modelColumns: DataTableColumns<AIModel> = [
     width: 190,
     render: (r) =>
       h(NSpace, { size: 6 }, () => [
-        auth.hasPerm('admin.user.update') &&
+        auth.hasPerm('admin.model_access.manage') &&
           h(NButton, { size: 'tiny', onClick: () => openAccessModal(r) }, { default: () => 'Доступ' }),
         h(
           NButton,

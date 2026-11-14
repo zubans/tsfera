@@ -1695,10 +1695,12 @@ func TestCheckSimilarContractorsAndSubdivisionScoping(t *testing.T) {
 		UserID:        3,
 		SubdivisionID: &sub1,
 		Permissions: map[string]bool{
-			"crm.contractor.view":            true,
-			"crm.contractor.view_all":        true,
-			"crm.application.view":           true,
-			"admin.user.without_subdivision": true,
+			"crm.contractor.view":             true,
+			"crm.contractor.view_all":         true,
+			"crm.application.view":            true,
+			"admin.user.without_subdivision":  true,
+			"crm.calendar.select_user":        true,
+			"crm.calendar.select_subdivision": true,
 		},
 	}
 	_, globalTotal, _ := svc.SearchContractors(ctx, globalMgr, "", 50, 0)

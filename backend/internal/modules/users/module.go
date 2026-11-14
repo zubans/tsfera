@@ -34,7 +34,8 @@ func (m *Module) Tools() []platform.ToolDefinition      { return nil }
 func (m *Module) SearchSources() []platform.IndexSource { return nil }
 
 func (m *Module) Permissions() []platform.PermissionDef {
-	return []platform.PermissionDef{
+	return platform.WithMigrationPermissions("admin", []platform.PermissionDef{
+		{Key: "admin.model_access.manage", Group: "admin", Resource: "model_access", Action: "manage", Description: "Админ.ИИ-модели.Управление доступом"},
 		{Key: "admin.user.view", Group: "admin", Resource: "user", Action: "view", Description: "Админ.Пользователи.Просмотр"},
 		{Key: "admin.user.create", Group: "admin", Resource: "user", Action: "create", Description: "Админ.Пользователи.Создание"},
 		{Key: "admin.user.update", Group: "admin", Resource: "user", Action: "update", Description: "Админ.Пользователи.Редактирование"},
@@ -43,7 +44,7 @@ func (m *Module) Permissions() []platform.PermissionDef {
 		{Key: "admin.role.view", Group: "admin", Resource: "role", Action: "view", Description: "Админ.Роли.Просмотр"},
 		{Key: "admin.role.update", Group: "admin", Resource: "role", Action: "update", Description: "Админ.Роли.Редактирование"},
 		{Key: "admin.role.delete", Group: "admin", Resource: "role", Action: "delete", Description: "Админ.Роли.Удаление"},
-	}
+	})
 }
 
 func (m *Module) SyncPermissions(ctx context.Context, all []platform.PermissionDef) error {

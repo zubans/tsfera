@@ -50,17 +50,17 @@ func (h *Handler) Mount(r chi.Router) {
 			admin.With(platform.RequirePermission("admin.user.update")).Put("/admin/users/{id}", h.updateUser)
 			admin.With(platform.RequirePermission("admin.user.change_password")).Post("/admin/users/{id}/password", h.adminChangePassword)
 			admin.Get("/admin/inventory", h.listInventory)
-			admin.With(platform.RequirePermission("admin.user.update")).Post("/admin/inventory", h.createInventory)
-			admin.With(platform.RequirePermission("admin.user.update")).Delete("/admin/inventory/{id}", h.deleteInventory)
+			admin.Post("/admin/inventory", h.createInventory)
+			admin.Delete("/admin/inventory/{id}", h.deleteInventory)
 
 			admin.With(platform.RequirePermission("admin.role.view")).Get("/admin/roles", h.listRoles)
 			admin.With(platform.RequirePermission("admin.role.view")).Get("/admin/permissions", h.listPermissions)
-			admin.With(platform.RequirePermission("admin.role.update")).Put("/admin/roles/{name}", h.saveRole)
+			admin.With(platform.RequireAnyPermission("admin.role.create", "admin.role.update")).Put("/admin/roles/{name}", h.saveRole)
 			admin.With(platform.RequirePermission("admin.role.delete")).Delete("/admin/roles/{name}", h.deleteRole)
 
 			admin.Get("/admin/logins", h.listLogins)
-			admin.Get("/admin/model-access", h.listModelAccess)
-			admin.With(platform.RequirePermission("admin.user.update")).Put("/admin/model-access/{modelId}", h.setModelAccess)
+			admin.With(platform.RequirePermission("admin.model_access.manage")).Get("/admin/model-access", h.listModelAccess)
+			admin.With(platform.RequirePermission("admin.model_access.manage")).Put("/admin/model-access/{modelId}", h.setModelAccess)
 		})
 	})
 }
@@ -315,6 +315,15 @@ func (h *Handler) listInventory(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, h.logger, err)
 		return
 	}
+	ac, _ := platform.AuthFromContext(r.Context())
+	visible := items[:0]
+	for _, item := range items {
+		if ac.HasPermission("admin.inventory." + item.Category + ".view") {
+			visible = append(visible, item)
+		}
+	}
+	items = visible
+
 	platform.WriteJSON(w, http.StatusOK, items)
 }
 
@@ -327,6 +336,12 @@ func (h *Handler) createInventory(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, h.logger, err)
 		return
 	}
+	ac, _ := platform.AuthFromContext(r.Context())
+	if !ac.HasPermission("admin.inventory." + req.Category + ".create") {
+		platform.WriteError(w, h.logger, platform.NewForbidden("Нет права создавать записи этого справочника"))
+		return
+	}
+
 	item, err := h.svc.CreateInventoryItem(r.Context(), req.Category, req.Name)
 	if err != nil {
 		platform.WriteError(w, h.logger, err)
@@ -341,6 +356,23 @@ func (h *Handler) deleteInventory(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, h.logger, platform.NewValidation("Некорректный ID", nil))
 		return
 	}
+	ac, _ := platform.AuthFromContext(r.Context())
+	items, err := h.svc.ListInventoryItems(r.Context(), "")
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	allowed := false
+	for _, item := range items {
+		if item.ID == id {
+			allowed = ac.HasPermission("admin.inventory." + item.Category + ".delete")
+		}
+	}
+	if !allowed {
+		platform.WriteError(w, h.logger, platform.NewForbidden("Нет права удалять запись этого справочника"))
+		return
+	}
+
 	if err := h.svc.DeleteInventoryItem(r.Context(), id); err != nil {
 		platform.WriteError(w, h.logger, err)
 		return
@@ -388,6 +420,23 @@ func (h *Handler) listPermissions(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) saveRole(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
+	ac, _ := platform.AuthFromContext(r.Context())
+	roles, err := h.svc.ListRoles(r.Context())
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	action := "create"
+	for _, role := range roles {
+		if role.Name == name {
+			action = "update"
+		}
+	}
+	if !ac.HasPermission("admin.role." + action) {
+		platform.WriteError(w, h.logger, platform.NewForbidden("Нет права на операцию с ролью"))
+		return
+	}
+
 	var req struct {
 		Description string   `json:"description"`
 		Permissions []string `json:"permissions"`

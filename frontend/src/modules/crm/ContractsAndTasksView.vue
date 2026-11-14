@@ -917,13 +917,13 @@ const taskColumns: DataTableColumns<CRMTask> = [
     width: 170,
     render: (r) =>
       h(NSpace, { size: 6 }, () => [
-        auth.hasPerm('crm.task.update') &&
+        auth.hasPerm('crm.task.execute') &&
           h(
             NButton,
             { size: 'tiny', type: 'primary', secondary: true, onClick: () => openExecuteTaskModal(r) },
             { default: () => 'Выполнить' }
           ),
-        h(NButton, { size: 'tiny', onClick: () => openTaskModal(r) }, { default: () => 'Изм.' })
+        auth.hasPerm('crm.task.update') && h(NButton, { size: 'tiny', onClick: () => openTaskModal(r) }, { default: () => 'Изм.' })
       ])
   }
 ]
@@ -1022,7 +1022,7 @@ onMounted(async () => {
             <NButton size="small" secondary @click="loadAll">Применить</NButton>
           </NSpace>
           <NSpace>
-            <NButton
+            <NButton v-if="auth.hasPerm('crm.contract.export')"
               secondary
               @click="
                 void runExport(
@@ -1033,7 +1033,7 @@ onMounted(async () => {
             >
               Экспорт XLSX
             </NButton>
-            <NButton
+            <NButton v-if="auth.hasPerm('crm.contract.export')"
               secondary
               @click="
                 void runExport(
@@ -1096,7 +1096,7 @@ onMounted(async () => {
               Запустить планировщик задач и пул
             </NButton>
             <NButton
-              v-if="auth.hasPerm('crm.pool.manage')"
+              v-if="auth.hasPerm('crm.pool.manage') || auth.hasPerm('crm.pool.update')"
               size="small"
               secondary
               @click="poolModalOpen = true"
@@ -1195,7 +1195,7 @@ onMounted(async () => {
             <NButton size="small" secondary @click="loadAll">Фильтр</NButton>
           </NSpace>
           <NSpace>
-            <NButton
+            <NButton v-if="auth.hasPerm('crm.call.export')"
               size="small"
               secondary
               @click="
@@ -1207,7 +1207,7 @@ onMounted(async () => {
             >
               Экспорт XLSX
             </NButton>
-            <NButton
+            <NButton v-if="auth.hasPerm('crm.call.export')"
               size="small"
               secondary
               @click="
@@ -1262,9 +1262,9 @@ onMounted(async () => {
             <NCard v-for="s in subdivisions" :key="s.id" size="small" style="min-width: 260px">
               <div style="display: flex; justify-content: space-between; gap: 8px; align-items: center">
                 <strong>{{ s.name }}</strong>
-                <NSpace v-if="auth.hasPerm('crm.subdivision.manage')" :size="4">
-                  <NButton size="tiny" @click="openSubdivisionModal(s)">Изм.</NButton>
-                  <NButton size="tiny" type="error" ghost @click="deleteSubdivision(s.id)">Уд.</NButton>
+                <NSpace :size="4">
+                  <NButton v-if="auth.hasPerm('crm.subdivision.manage') || auth.hasPerm('crm.subdivision.update')" size="tiny" @click="openSubdivisionModal(s)">Изм.</NButton>
+                  <NButton v-if="auth.hasPerm('crm.subdivision.manage') || auth.hasPerm('crm.subdivision.delete')" size="tiny" type="error" ghost @click="deleteSubdivision(s.id)">Уд.</NButton>
                 </NSpace>
               </div>
               <div style="font-size: 12px; color: #64748b">{{ s.address || 'Без адреса' }}</div>
@@ -1290,7 +1290,7 @@ onMounted(async () => {
               </div>
             </NCard>
           </NSpace>
-          <NButton v-if="auth.hasPerm('crm.subdivision.manage')" type="primary" size="small" @click="openSubdivisionModal()">
+          <NButton v-if="auth.hasPerm('crm.subdivision.manage') || auth.hasPerm('crm.subdivision.create')" type="primary" size="small" @click="openSubdivisionModal()">
             + Подразделение
           </NButton>
         </NSpace>
@@ -1298,7 +1298,7 @@ onMounted(async () => {
         <NDivider>SIP-аккаунты сотрудников ({{ sipAccounts.length }})</NDivider>
         <NSpace justify="space-between" style="margin-bottom: 10px">
           <NSpace wrap>
-            <NTag v-for="sip in sipAccounts" :key="sip.id" size="large" @click="openSipModal(sip)" style="cursor: pointer">
+            <NTag v-for="sip in sipAccounts" :key="sip.id" size="large" @click="(auth.hasPerm('crm.sip.manage') || auth.hasPerm('crm.sip.update')) && openSipModal(sip)" style="cursor: pointer">
               {{ sip.name || sip.abonent_id || sip.login }}
               <template v-if="sip.abonent_id"> · ВАТС {{ sip.abonent_id }}</template>
               <template v-if="sip.user_id"> · {{ workerNameById(sip.user_id) }}</template>
@@ -1307,7 +1307,7 @@ onMounted(async () => {
               Абонент {{ su.abonent_id || su.name }} -> {{ su.full_name || `#${su.user_id}` }}
             </NTag>
           </NSpace>
-          <NButton v-if="auth.hasPerm('crm.sip.manage')" size="small" secondary @click="openSipModal()">
+          <NButton v-if="auth.hasPerm('crm.sip.manage') || auth.hasPerm('crm.sip.create')" size="small" secondary @click="openSipModal()">
             + SIP-аккаунт
           </NButton>
         </NSpace>
@@ -1328,7 +1328,7 @@ onMounted(async () => {
               @update:value="loadRefs"
             />
           </NSpace>
-          <NSpace v-if="auth.hasPerm('crm.ref.manage')">
+          <NSpace v-if="auth.hasPerm('crm.ref.manage') || auth.hasPerm(`crm.ref.${activeRefKind}.create`)">
             <NInput v-model:value="newRefName" placeholder="Новое значение..." style="width: 240px" @keyup.enter="createRefItem" />
             <NButton type="primary" @click="createRefItem">Добавить</NButton>
           </NSpace>
@@ -1344,7 +1344,7 @@ onMounted(async () => {
               key: 'del',
               width: 90,
               render: (r: RefItem) =>
-                auth.hasPerm('crm.ref.manage')
+                (auth.hasPerm('crm.ref.manage') || auth.hasPerm(`crm.ref.${activeRefKind}.delete`))
                   ? h(NButton, { size: 'tiny', type: 'error', ghost: true, onClick: () => void deleteRefItem(r.id) }, { default: () => 'Удалить' })
                   : '—'
             }

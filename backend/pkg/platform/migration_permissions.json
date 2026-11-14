@@ -1,0 +1,344 @@
+{
+  "admin.user.create": [
+    "admin.user.create"
+  ],
+  "admin.user.update": [
+    "admin.user.update"
+  ],
+  "admin.user.delete": [
+    "admin.user.delete"
+  ],
+  "admin.user.view": [
+    "admin.user.view"
+  ],
+  "admin.user.change_password": [
+    "admin.user.change_password"
+  ],
+  "admin.role.create": [
+    "admin.role.create"
+  ],
+  "admin.role.delete": [
+    "admin.role.delete"
+  ],
+  "admin.role.update": [
+    "admin.role.update"
+  ],
+  "admin.role.view": [
+    "admin.role.view"
+  ],
+  "common.contractor.create": [
+    "crm.contractor.create",
+    "crm.address.create"
+  ],
+  "common.contractor.update": [
+    "crm.contractor.update",
+    "crm.address.update"
+  ],
+  "common.contractor.delete": [
+    "crm.contractor.delete",
+    "crm.address.delete"
+  ],
+  "common.contractor.view": [
+    "crm.contractor.view",
+    "crm.address.view"
+  ],
+  "common.equipment.create": [
+    "crm.equipment.create"
+  ],
+  "common.equipment.update": [
+    "crm.equipment.update"
+  ],
+  "common.equipment.delete": [
+    "crm.equipment.delete"
+  ],
+  "common.equipment.view": [
+    "crm.equipment.view"
+  ],
+  "admin.subdivision.create": [
+    "crm.subdivision.create"
+  ],
+  "admin.subdivision.update": [
+    "crm.subdivision.update"
+  ],
+  "admin.subdivision.delete": [
+    "crm.subdivision.delete"
+  ],
+  "admin.subdivision.view": [
+    "crm.subdivision.view"
+  ],
+  "common.maintenance_contract.update": [
+    "crm.contract.update"
+  ],
+  "common.maintenance_contract.create": [
+    "crm.contract.create"
+  ],
+  "common.maintenance_contract.view": [
+    "crm.contract.view"
+  ],
+  "common.maintenance_contract.delete": [
+    "crm.contract.delete"
+  ],
+  "common.certificate_of_completion.update": [
+    "crm.certificate.update"
+  ],
+  "common.certificate_of_completion.create": [
+    "crm.certificate.create"
+  ],
+  "common.certificate_of_completion.view": [
+    "crm.certificate.view"
+  ],
+  "common.certificate_of_completion.delete": [
+    "crm.certificate.delete"
+  ],
+  "common.type_of_job.update": [
+    "crm.ref.work_type.update"
+  ],
+  "common.type_of_job.create": [
+    "crm.ref.work_type.create"
+  ],
+  "common.type_of_job.view": [
+    "crm.ref.work_type.view"
+  ],
+  "common.type_of_job.delete": [
+    "crm.ref.work_type.delete"
+  ],
+  "common.application_for_technical_work.update": [
+    "crm.application.update"
+  ],
+  "common.application_for_technical_work.create": [
+    "crm.application.create"
+  ],
+  "common.application_for_technical_work.view": [
+    "crm.application.view"
+  ],
+  "common.application_for_technical_work.delete": [
+    "crm.application.delete"
+  ],
+  "common.calendar.view": [
+    "crm.calendar.view"
+  ],
+  "common.calendar.select_user_calendar": [
+    "crm.calendar.select_user"
+  ],
+  "common.contractor.engineer_view": [
+    "crm.contractor.view",
+    "crm.contractor.view_restricted"
+  ],
+  "common.notification.view": [
+    "crm.notification.view"
+  ],
+  "common.certificate_of_completion.export": [
+    "crm.certificate.export"
+  ],
+  "common.application_for_technical_work.close": [
+    "crm.application.close"
+  ],
+  "common.certificate_of_completion.update_executor": [
+    "crm.certificate.update_executor"
+  ],
+  "common.application_for_technical_work.update_comment": [
+    "crm.application.update_comment"
+  ],
+  "admin.user.without_subdivision": [
+    "admin.user.without_subdivision"
+  ],
+  "common.calendar.select_user_subdivision": [
+    "crm.calendar.select_subdivision"
+  ],
+  "common.application_for_technical_work.rating": [
+    "crm.application.rating"
+  ],
+  "common.system_info.view": [
+    "crm.system.view"
+  ],
+  "admin.sip_account.create": [
+    "crm.sip.create"
+  ],
+  "admin.sip_account.update": [
+    "crm.sip.update"
+  ],
+  "admin.sip_account.delete": [
+    "crm.sip.delete"
+  ],
+  "admin.sip_account.view": [
+    "crm.sip.view"
+  ],
+  "common.call.view": [
+    "crm.call.view",
+    "crm.call.update"
+  ],
+  "common.special_note.update": [
+    "crm.ref.special_note.update"
+  ],
+  "common.special_note.create": [
+    "crm.ref.special_note.create"
+  ],
+  "common.special_note.view": [
+    "crm.ref.special_note.view"
+  ],
+  "common.special_note.delete": [
+    "crm.ref.special_note.delete"
+  ],
+  "admin.pool_setting.view": [
+    "crm.pool.view"
+  ],
+  "admin.pool_setting.update": [
+    "crm.pool.update"
+  ],
+  "common.task.view": [
+    "crm.task.view"
+  ],
+  "common.task.create": [
+    "crm.task.create"
+  ],
+  "common.task.update": [
+    "crm.task.update"
+  ],
+  "common.task.delete": [
+    "crm.task.delete"
+  ],
+  "common.task.execute": [
+    "crm.task.execute"
+  ],
+  "report.expired_tasks.view": [
+    "crm.report.expired_tasks.view"
+  ],
+  "common.work_clothes.update": [
+    "admin.inventory.work_clothes.update"
+  ],
+  "common.work_clothes.create": [
+    "admin.inventory.work_clothes.create"
+  ],
+  "common.work_clothes.view": [
+    "admin.inventory.work_clothes.view"
+  ],
+  "common.work_clothes.delete": [
+    "admin.inventory.work_clothes.delete"
+  ],
+  "common.engineer_instrument.update": [
+    "admin.inventory.instrument.update"
+  ],
+  "common.engineer_instrument.create": [
+    "admin.inventory.instrument.create"
+  ],
+  "common.engineer_instrument.view": [
+    "admin.inventory.instrument.view"
+  ],
+  "common.engineer_instrument.delete": [
+    "admin.inventory.instrument.delete"
+  ],
+  "common.engineer_equipment.update": [
+    "admin.inventory.engineer_equipment.update"
+  ],
+  "common.engineer_equipment.create": [
+    "admin.inventory.engineer_equipment.create"
+  ],
+  "common.engineer_equipment.view": [
+    "admin.inventory.engineer_equipment.view"
+  ],
+  "common.engineer_equipment.delete": [
+    "admin.inventory.engineer_equipment.delete"
+  ],
+  "common.traffic_source.update": [
+    "crm.traffic_source.update"
+  ],
+  "common.traffic_source.create": [
+    "crm.traffic_source.create"
+  ],
+  "common.traffic_source.view": [
+    "crm.traffic_source.view"
+  ],
+  "common.traffic_source.delete": [
+    "crm.traffic_source.delete"
+  ],
+  "report.call_conversion.view": [
+    "crm.report.call_conversion.view"
+  ],
+  "report.amount_spare_parts.view": [
+    "crm.report.amount_spare_parts.view"
+  ],
+  "common.maintenance_contract.export": [
+    "crm.contract.export"
+  ],
+  "common.call.export": [
+    "crm.call.export"
+  ],
+  "report.engineers.view": [
+    "crm.report.engineers.view"
+  ],
+  "report.contractors.view": [
+    "crm.report.contractors.view"
+  ],
+  "report.traffic_sources.view": [
+    "crm.report.traffic_sources.view"
+  ],
+  "common.miss-call.view": [
+    "crm.miss_call.view"
+  ],
+  "common.analytic_question.update": [
+    "crm.analytic_question.update"
+  ],
+  "common.analytic_question.create": [
+    "crm.analytic_question.create"
+  ],
+  "common.analytic_question.view": [
+    "crm.analytic_question.view"
+  ],
+  "common.analytic_question.delete": [
+    "crm.analytic_question.delete"
+  ],
+  "common.analytic_of_technical_work.update": [
+    "crm.analytic.update"
+  ],
+  "common.analytic_of_technical_work.create": [
+    "crm.analytic.create"
+  ],
+  "common.analytic_of_technical_work.view": [
+    "crm.analytic.view"
+  ],
+  "common.analytic_of_technical_work.delete": [
+    "crm.analytic.delete"
+  ],
+  "common.app_setting.update": [
+    "crm.setting.update"
+  ],
+  "common.app_setting.create": [
+    "crm.setting.create"
+  ],
+  "common.app_setting.view": [
+    "crm.setting.view"
+  ],
+  "common.app_setting.delete": [
+    "crm.setting.delete"
+  ],
+  "common.banner.update": [
+    "crm.banner.update"
+  ],
+  "common.banner.create": [
+    "crm.banner.create"
+  ],
+  "common.banner.view": [
+    "crm.banner.view"
+  ],
+  "common.banner.delete": [
+    "crm.banner.delete"
+  ],
+  "report.sum_subdivision.view": [
+    "crm.report.sum_subdivision.view"
+  ],
+  "report.sum_subdivision.allow_select_subdivision": [
+    "crm.report.sum_subdivision.allow_select_subdivision"
+  ],
+  "report.sum_executor.view": [
+    "crm.report.sum_executor.view"
+  ],
+  "report.sum_executor.allow_select_subdivision": [
+    "crm.report.sum_executor.allow_select_subdivision"
+  ],
+  "report.engineers.allow_select_subdivision": [
+    "crm.report.engineers.allow_select_subdivision"
+  ],
+  "report.amount_spare_parts.allow_select_subdivision": [
+    "crm.report.amount_spare_parts.allow_select_subdivision"
+  ]
+}

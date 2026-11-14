@@ -1,0 +1,2199 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "superadmin",
+      "type": 1
+    },
+    {
+      "id": 2,
+      "name": "admin.user.create",
+      "type": 2
+    },
+    {
+      "id": 3,
+      "name": "admin.user.update",
+      "type": 2
+    },
+    {
+      "id": 4,
+      "name": "admin.user.delete",
+      "type": 2
+    },
+    {
+      "id": 5,
+      "name": "admin.user.view",
+      "type": 2
+    },
+    {
+      "id": 6,
+      "name": "admin.user.change_password",
+      "type": 2
+    },
+    {
+      "id": 7,
+      "name": "admin.role.create",
+      "type": 2
+    },
+    {
+      "id": 8,
+      "name": "admin.role.delete",
+      "type": 2
+    },
+    {
+      "id": 9,
+      "name": "admin.role.update",
+      "type": 2
+    },
+    {
+      "id": 10,
+      "name": "admin.role.view",
+      "type": 2
+    },
+    {
+      "id": 11,
+      "name": "common.contractor.create",
+      "type": 2
+    },
+    {
+      "id": 12,
+      "name": "common.contractor.update",
+      "type": 2
+    },
+    {
+      "id": 13,
+      "name": "common.contractor.delete",
+      "type": 2
+    },
+    {
+      "id": 14,
+      "name": "common.contractor.view",
+      "type": 2
+    },
+    {
+      "id": 15,
+      "name": "common.equipment.create",
+      "type": 2
+    },
+    {
+      "id": 16,
+      "name": "common.equipment.update",
+      "type": 2
+    },
+    {
+      "id": 17,
+      "name": "common.equipment.delete",
+      "type": 2
+    },
+    {
+      "id": 18,
+      "name": "common.equipment.view",
+      "type": 2
+    },
+    {
+      "id": 19,
+      "name": "admin.subdivision.create",
+      "type": 2
+    },
+    {
+      "id": 20,
+      "name": "admin.subdivision.update",
+      "type": 2
+    },
+    {
+      "id": 21,
+      "name": "admin.subdivision.delete",
+      "type": 2
+    },
+    {
+      "id": 22,
+      "name": "admin.subdivision.view",
+      "type": 2
+    },
+    {
+      "id": 23,
+      "name": "common.maintenance_contract.update",
+      "type": 2
+    },
+    {
+      "id": 24,
+      "name": "common.maintenance_contract.create",
+      "type": 2
+    },
+    {
+      "id": 25,
+      "name": "common.maintenance_contract.view",
+      "type": 2
+    },
+    {
+      "id": 26,
+      "name": "common.maintenance_contract.delete",
+      "type": 2
+    },
+    {
+      "id": 27,
+      "name": "common.certificate_of_completion.update",
+      "type": 2
+    },
+    {
+      "id": 28,
+      "name": "common.certificate_of_completion.create",
+      "type": 2
+    },
+    {
+      "id": 29,
+      "name": "common.certificate_of_completion.view",
+      "type": 2
+    },
+    {
+      "id": 30,
+      "name": "common.certificate_of_completion.delete",
+      "type": 2
+    },
+    {
+      "id": 31,
+      "name": "common.type_of_job.update",
+      "type": 2
+    },
+    {
+      "id": 32,
+      "name": "common.type_of_job.create",
+      "type": 2
+    },
+    {
+      "id": 33,
+      "name": "common.type_of_job.view",
+      "type": 2
+    },
+    {
+      "id": 34,
+      "name": "common.type_of_job.delete",
+      "type": 2
+    },
+    {
+      "id": 35,
+      "name": "common.application_for_technical_work.update",
+      "type": 2
+    },
+    {
+      "id": 36,
+      "name": "common.application_for_technical_work.create",
+      "type": 2
+    },
+    {
+      "id": 37,
+      "name": "common.application_for_technical_work.view",
+      "type": 2
+    },
+    {
+      "id": 38,
+      "name": "common.application_for_technical_work.delete",
+      "type": 2
+    },
+    {
+      "id": 39,
+      "name": "common.calendar.view",
+      "type": 2
+    },
+    {
+      "id": 40,
+      "name": "common.calendar.select_user_calendar",
+      "type": 2
+    },
+    {
+      "id": 41,
+      "name": "common.contractor.engineer_view",
+      "type": 2
+    },
+    {
+      "id": 42,
+      "name": "common.notification.view",
+      "type": 2
+    },
+    {
+      "id": 43,
+      "name": "common.certificate_of_completion.export",
+      "type": 2
+    },
+    {
+      "id": 44,
+      "name": "common.application_for_technical_work.close",
+      "type": 2
+    },
+    {
+      "id": 45,
+      "name": "operator",
+      "type": 1
+    },
+    {
+      "id": 46,
+      "name": "inzener",
+      "type": 1
+    },
+    {
+      "id": 47,
+      "name": "common.certificate_of_completion.update_executor",
+      "type": 2
+    },
+    {
+      "id": 48,
+      "name": "common.application_for_technical_work.update_comment",
+      "type": 2
+    },
+    {
+      "id": 49,
+      "name": "admin.user.without_subdivision",
+      "type": 2
+    },
+    {
+      "id": 50,
+      "name": "common.calendar.select_user_subdivision",
+      "type": 2
+    },
+    {
+      "id": 51,
+      "name": "common.application_for_technical_work.rating",
+      "type": 2
+    },
+    {
+      "id": 53,
+      "name": "common.system_info.view",
+      "type": 2
+    },
+    {
+      "id": 54,
+      "name": "admin.sip_account.create",
+      "type": 2
+    },
+    {
+      "id": 55,
+      "name": "admin.sip_account.update",
+      "type": 2
+    },
+    {
+      "id": 56,
+      "name": "admin.sip_account.delete",
+      "type": 2
+    },
+    {
+      "id": 57,
+      "name": "admin.sip_account.view",
+      "type": 2
+    },
+    {
+      "id": 58,
+      "name": "common.call.view",
+      "type": 2
+    },
+    {
+      "id": 63,
+      "name": "common.special_note.update",
+      "type": 2
+    },
+    {
+      "id": 64,
+      "name": "common.special_note.create",
+      "type": 2
+    },
+    {
+      "id": 65,
+      "name": "common.special_note.view",
+      "type": 2
+    },
+    {
+      "id": 66,
+      "name": "common.special_note.delete",
+      "type": 2
+    },
+    {
+      "id": 99,
+      "name": "admin.pool_setting.view",
+      "type": 2
+    },
+    {
+      "id": 100,
+      "name": "admin.pool_setting.update",
+      "type": 2
+    },
+    {
+      "id": 101,
+      "name": "common.task.view",
+      "type": 2
+    },
+    {
+      "id": 102,
+      "name": "common.task.create",
+      "type": 2
+    },
+    {
+      "id": 103,
+      "name": "common.task.update",
+      "type": 2
+    },
+    {
+      "id": 104,
+      "name": "common.task.delete",
+      "type": 2
+    },
+    {
+      "id": 105,
+      "name": "common.task.execute",
+      "type": 2
+    },
+    {
+      "id": 106,
+      "name": "report.expired_tasks.view",
+      "type": 2
+    },
+    {
+      "id": 107,
+      "name": "common.work_clothes.update",
+      "type": 2
+    },
+    {
+      "id": 108,
+      "name": "common.work_clothes.create",
+      "type": 2
+    },
+    {
+      "id": 109,
+      "name": "common.work_clothes.view",
+      "type": 2
+    },
+    {
+      "id": 110,
+      "name": "common.work_clothes.delete",
+      "type": 2
+    },
+    {
+      "id": 111,
+      "name": "common.engineer_instrument.update",
+      "type": 2
+    },
+    {
+      "id": 112,
+      "name": "common.engineer_instrument.create",
+      "type": 2
+    },
+    {
+      "id": 113,
+      "name": "common.engineer_instrument.view",
+      "type": 2
+    },
+    {
+      "id": 114,
+      "name": "common.engineer_instrument.delete",
+      "type": 2
+    },
+    {
+      "id": 115,
+      "name": "common.engineer_equipment.update",
+      "type": 2
+    },
+    {
+      "id": 116,
+      "name": "common.engineer_equipment.create",
+      "type": 2
+    },
+    {
+      "id": 117,
+      "name": "common.engineer_equipment.view",
+      "type": 2
+    },
+    {
+      "id": 118,
+      "name": "common.engineer_equipment.delete",
+      "type": 2
+    },
+    {
+      "id": 119,
+      "name": "menedzer_po_prodazam",
+      "type": 1
+    },
+    {
+      "id": 125,
+      "name": "common.traffic_source.update",
+      "type": 2
+    },
+    {
+      "id": 126,
+      "name": "common.traffic_source.create",
+      "type": 2
+    },
+    {
+      "id": 127,
+      "name": "common.traffic_source.view",
+      "type": 2
+    },
+    {
+      "id": 128,
+      "name": "common.traffic_source.delete",
+      "type": 2
+    },
+    {
+      "id": 129,
+      "name": "report.call_conversion.view",
+      "type": 2
+    },
+    {
+      "id": 130,
+      "name": "report.amount_spare_parts.view",
+      "type": 2
+    },
+    {
+      "id": 132,
+      "name": "common.maintenance_contract.export",
+      "type": 2
+    },
+    {
+      "id": 133,
+      "name": "common.call.export",
+      "type": 2
+    },
+    {
+      "id": 134,
+      "name": "report.engineers.view",
+      "type": 2
+    },
+    {
+      "id": 135,
+      "name": "report.contractors.view",
+      "type": 2
+    },
+    {
+      "id": 136,
+      "name": "report.traffic_sources.view",
+      "type": 2
+    },
+    {
+      "id": 137,
+      "name": "common.miss-call.view",
+      "type": 2
+    },
+    {
+      "id": 138,
+      "name": "rukovoditel_podrazdelenia",
+      "type": 1
+    },
+    {
+      "id": 139,
+      "name": "menedzer_po_kacestvu",
+      "type": 1
+    },
+    {
+      "id": 154,
+      "name": "common.analytic_question.update",
+      "type": 2
+    },
+    {
+      "id": 155,
+      "name": "common.analytic_question.create",
+      "type": 2
+    },
+    {
+      "id": 156,
+      "name": "common.analytic_question.view",
+      "type": 2
+    },
+    {
+      "id": 157,
+      "name": "common.analytic_question.delete",
+      "type": 2
+    },
+    {
+      "id": 158,
+      "name": "common.analytic_of_technical_work.update",
+      "type": 2
+    },
+    {
+      "id": 159,
+      "name": "common.analytic_of_technical_work.create",
+      "type": 2
+    },
+    {
+      "id": 160,
+      "name": "common.analytic_of_technical_work.view",
+      "type": 2
+    },
+    {
+      "id": 161,
+      "name": "common.analytic_of_technical_work.delete",
+      "type": 2
+    },
+    {
+      "id": 162,
+      "name": "common.app_setting.update",
+      "type": 2
+    },
+    {
+      "id": 163,
+      "name": "common.app_setting.create",
+      "type": 2
+    },
+    {
+      "id": 164,
+      "name": "common.app_setting.view",
+      "type": 2
+    },
+    {
+      "id": 165,
+      "name": "common.app_setting.delete",
+      "type": 2
+    },
+    {
+      "id": 166,
+      "name": "common.banner.update",
+      "type": 2
+    },
+    {
+      "id": 167,
+      "name": "common.banner.create",
+      "type": 2
+    },
+    {
+      "id": 168,
+      "name": "common.banner.view",
+      "type": 2
+    },
+    {
+      "id": 169,
+      "name": "common.banner.delete",
+      "type": 2
+    },
+    {
+      "id": 170,
+      "name": "buhgalter",
+      "type": 1
+    },
+    {
+      "id": 171,
+      "name": "menedzer_v2v",
+      "type": 1
+    },
+    {
+      "id": 172,
+      "name": "call_center",
+      "type": 1
+    },
+    {
+      "id": 173,
+      "name": "report.sum_subdivision.view",
+      "type": 2
+    },
+    {
+      "id": 174,
+      "name": "report.sum_subdivision.allow_select_subdivision",
+      "type": 2
+    },
+    {
+      "id": 175,
+      "name": "report.sum_executor.view",
+      "type": 2
+    },
+    {
+      "id": 176,
+      "name": "report.sum_executor.allow_select_subdivision",
+      "type": 2
+    },
+    {
+      "id": 177,
+      "name": "report.engineers.allow_select_subdivision",
+      "type": 2
+    },
+    {
+      "id": 178,
+      "name": "report.amount_spare_parts.allow_select_subdivision",
+      "type": 2
+    }
+  ],
+  "links": [
+    {
+      "parent": "buhgalter",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "admin.user.without_subdivision"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.certificate_of_completion.export"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.engineer_equipment.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.engineer_instrument.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.system_info.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "common.work_clothes.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.amount_spare_parts.allow_select_subdivision"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.sum_executor.allow_select_subdivision"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.sum_subdivision.allow_select_subdivision"
+    },
+    {
+      "parent": "buhgalter",
+      "child": "report.sum_subdivision.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "admin.user.without_subdivision"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.analytic_of_technical_work.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.delete"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.certificate_of_completion.export"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.certificate_of_completion.update_executor"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.equipment.delete"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.maintenance_contract.delete"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.maintenance_contract.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.special_note.create"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.special_note.delete"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.special_note.update"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "report.amount_spare_parts.allow_select_subdivision"
+    },
+    {
+      "parent": "call_center",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "call_center",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "common.contractor.engineer_view",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.certificate_of_completion.delete"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.contractor.engineer_view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.maintenance_contract.update"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "inzener",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "admin.user.without_subdivision"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.analytic_of_technical_work.create"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.analytic_of_technical_work.update"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.analytic_of_technical_work.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "menedzer_po_kacestvu",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.contractor.delete"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "menedzer_po_prodazam",
+      "child": "report.sum_subdivision.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.analytic_of_technical_work.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "menedzer_v2v",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "operator",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "operator",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "operator",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "operator",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "operator",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "operator",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "operator",
+      "child": "common.contractor.delete"
+    },
+    {
+      "parent": "operator",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "operator",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "operator",
+      "child": "common.equipment.delete"
+    },
+    {
+      "parent": "operator",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "operator",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "operator",
+      "child": "common.maintenance_contract.delete"
+    },
+    {
+      "parent": "operator",
+      "child": "common.maintenance_contract.update"
+    },
+    {
+      "parent": "operator",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.task.execute"
+    },
+    {
+      "parent": "operator",
+      "child": "common.task.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "operator",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "operator",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "operator",
+      "child": "report.engineers.view"
+    },
+    {
+      "parent": "operator",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "operator",
+      "child": "report.sum_subdivision.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.pool_setting.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.change_password"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "admin.user.without_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.analytic_of_technical_work.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.call.export"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.export"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.update_executor"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.contractor.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_equipment.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_equipment.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_equipment.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_equipment.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_instrument.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_instrument.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_instrument.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.engineer_instrument.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.equipment.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.maintenance_contract.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.maintenance_contract.export"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.maintenance_contract.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.special_note.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.special_note.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.special_note.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.system_info.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.task.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.task.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.task.execute"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.task.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.task.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.traffic_source.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.traffic_source.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.traffic_source.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.work_clothes.create"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.work_clothes.delete"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.work_clothes.update"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "common.work_clothes.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.amount_spare_parts.allow_select_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.call_conversion.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.contractors.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.engineers.allow_select_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.engineers.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.expired_tasks.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.sum_executor.allow_select_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.sum_subdivision.allow_select_subdivision"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.sum_subdivision.view"
+    },
+    {
+      "parent": "rukovoditel_podrazdelenia",
+      "child": "report.traffic_sources.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.pool_setting.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.pool_setting.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.role.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.role.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.role.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.role.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.sip_account.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.sip_account.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.sip_account.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.sip_account.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.subdivision.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.subdivision.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.subdivision.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.subdivision.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.change_password"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "admin.user.without_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_of_technical_work.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_of_technical_work.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_of_technical_work.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_of_technical_work.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_question.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_question.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_question.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.analytic_question.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.app_setting.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.app_setting.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.app_setting.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.app_setting.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.close"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.rating"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.update_comment"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.application_for_technical_work.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.banner.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.banner.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.banner.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.banner.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.calendar.select_user_calendar"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.calendar.select_user_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.calendar.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.call.export"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.call.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.export"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.update_executor"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.certificate_of_completion.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.contractor.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.contractor.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.contractor.engineer_view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.contractor.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.contractor.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_equipment.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_equipment.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_equipment.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_equipment.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_instrument.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_instrument.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_instrument.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.engineer_instrument.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.equipment.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.equipment.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.equipment.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.equipment.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.maintenance_contract.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.maintenance_contract.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.maintenance_contract.export"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.maintenance_contract.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.maintenance_contract.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.miss-call.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.notification.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.special_note.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.special_note.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.special_note.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.special_note.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.system_info.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.task.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.task.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.task.execute"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.task.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.task.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.traffic_source.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.traffic_source.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.traffic_source.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.traffic_source.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.type_of_job.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.type_of_job.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.type_of_job.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.type_of_job.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.work_clothes.create"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.work_clothes.delete"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.work_clothes.update"
+    },
+    {
+      "parent": "superadmin",
+      "child": "common.work_clothes.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.amount_spare_parts.allow_select_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.amount_spare_parts.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.call_conversion.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.contractors.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.engineers.allow_select_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.engineers.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.expired_tasks.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.sum_executor.allow_select_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.sum_executor.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.sum_subdivision.allow_select_subdivision"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.sum_subdivision.view"
+    },
+    {
+      "parent": "superadmin",
+      "child": "report.traffic_sources.view"
+    }
+  ]
+}

@@ -50,7 +50,7 @@ func (a *AuthContext) HasPermission(perm string) bool {
 
 func isWritePermission(perm string) bool {
 	return len(perm) > 6 && (slices.Contains([]string{
-		".create", ".update", ".delete", ".write", ".close", ".execute", ".manage", ".admin", ".run",
+		".create", ".update", ".rating", ".update_comment", ".update_executor", ".change_password", ".delete", ".write", ".close", ".execute", ".manage", ".admin", ".run",
 	}, perm[max(0, lastDotIndex(perm)):]))
 }
 
