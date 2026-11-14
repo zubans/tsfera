@@ -1800,7 +1800,8 @@ const selectCallSQL = `
 	SELECT c.id, c.external_call_id, c.abonent_id, c.ext_tracking_id, c.direction, c.status,
 	       c.caller_phone, c.callee_phone, c.sip_login, c.user_id, c.contractor_id, COALESCE(ct.name, ''),
 	       c.traffic_source_id, c.caller_type, c.call_result,
-	       c.type_of_appeal, c.comment, c.record_url, c.duration_sec, c.started_at, c.answer_time, c.ended_at,
+	       c.type_of_appeal, c.comment, c.record_url, c.transcript_text, c.transcript_status, c.transcript_error, c.transcribed_at,
+	       c.duration_sec, c.started_at, c.answer_time, c.ended_at,
 	       c.raw_payload, c.created_at, c.updated_at
 	FROM crm_calls c
 	LEFT JOIN crm_contractors ct ON ct.id = c.contractor_id
@@ -1812,7 +1813,8 @@ func scanCall(row pgx.Row) (*CallRecord, error) {
 		&rec.ID, &rec.ExternalCallID, &rec.AbonentID, &rec.ExtTrackingID, &rec.Direction, &rec.Status,
 		&rec.CallerPhone, &rec.CalleePhone, &rec.SipLogin, &rec.UserID, &rec.ContractorID, &rec.ContractorName,
 		&rec.TrafficSourceID, &rec.CallerType, &rec.CallResult,
-		&rec.TypeOfAppeal, &rec.Comment, &rec.RecordURL, &rec.DurationSec, &rec.StartedAt, &rec.AnswerTime, &rec.EndedAt,
+		&rec.TypeOfAppeal, &rec.Comment, &rec.RecordURL, &rec.TranscriptText, &rec.TranscriptStatus, &rec.TranscriptError, &rec.TranscribedAt,
+		&rec.DurationSec, &rec.StartedAt, &rec.AnswerTime, &rec.EndedAt,
 		&rec.RawPayload, &rec.CreatedAt, &rec.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1911,6 +1913,31 @@ func (r *PgRepository) ListCalls(ctx context.Context, f CallFilter) ([]CallRecor
 
 func (r *PgRepository) GetCall(ctx context.Context, id int64) (*CallRecord, error) {
 	return scanCall(r.db.QueryRow(ctx, selectCallSQL+" WHERE c.id = $1", id))
+}
+
+func (r *PgRepository) UpdateCallTranscript(ctx context.Context, id int64, status, text, errMsg string, transcribedAt *time.Time) error {
+	return platform.ExecExpectingOne(ctx, r.db, `
+		UPDATE crm_calls
+		SET transcript_status = $2,
+		    transcript_text = $3,
+		    transcript_error = $4,
+		    transcribed_at = $5,
+		    updated_at = now()
+		WHERE id = $1
+	`, "Звонок не найден", id, status, text, errMsg, transcribedAt)
+}
+
+func (r *PgRepository) UpdateCallTranscriptError(ctx context.Context, id int64, errMsg string) error {
+	return platform.ExecExpectingOne(ctx, r.db, `
+		UPDATE crm_calls
+		SET transcript_status = CASE
+		        WHEN transcript_status = 'done' AND COALESCE(transcript_text, '') <> '' THEN 'done'
+		        ELSE 'failed'
+		    END,
+		    transcript_error = $2,
+		    updated_at = now()
+		WHERE id = $1
+	`, "Звонок не найден", id, errMsg)
 }
 
 func (r *PgRepository) GetCallByExternalID(ctx context.Context, externalCallID string) (*CallRecord, error) {

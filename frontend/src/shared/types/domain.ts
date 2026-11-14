@@ -372,6 +372,10 @@ export interface CallRecord {
   call_result?: number
   type_of_appeal?: string
   comment?: string
+  transcript_text?: string
+  transcript_status?: string
+  transcript_error?: string
+  transcribed_at?: string | null
   answer_time?: string | null
   duration_sec: number
   started_at: string

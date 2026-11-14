@@ -419,3 +419,64 @@ func TestMetadataChangeInvalidatesChunkHash(t *testing.T) {
 		t.Fatal("visibility change did not invalidate index hash")
 	}
 }
+
+func TestGatewayTranscribeAudio(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/audio/transcriptions" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("parse multipart: %v", err)
+		}
+		if r.FormValue("model") != "whisper-1" || r.FormValue("language") != "ru" {
+			t.Fatalf("unexpected form values: model=%q lang=%q", r.FormValue("model"), r.FormValue("language"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"text":"Здравствуйте, нужен выезд мастера"}`))
+	}))
+	defer srv.Close()
+
+	repo := newMemAIRepo()
+	p := &Provider{Name: "OpenAI", Kind: ProviderOpenAI, BaseURL: srv.URL, APIKey: "sk-test", Active: true, IsDefault: true}
+	if err := repo.SaveProvider(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	m := &Model{ProviderID: p.ID, Name: "Whisper", ModelID: "whisper-1", Capability: CapSTT, IsDefault: true, OpenToAll: true, Active: true}
+	if err := repo.SaveModel(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+	gw := NewGateway(repo, nil, nil)
+	got, err := gw.TranscribeAudio(context.Background(), nil, 0, strings.NewReader("fake-mp3-bytes"), "call.mp3", "ru")
+	if err != nil {
+		t.Fatalf("TranscribeAudio failed: %v", err)
+	}
+	if got != "Здравствуйте, нужен выезд мастера" {
+		t.Fatalf("unexpected transcript: %q", got)
+	}
+}
+
+type denyModelAccess struct{}
+
+func (denyModelAccess) CanAccessModel(_ context.Context, _ *platform.AuthContext, _ int64, openToAll bool) (bool, error) {
+	return openToAll, nil
+}
+
+func TestGatewayTranscribeAudioAccessDenied(t *testing.T) {
+	repo := newMemAIRepo()
+	p := &Provider{Name: "OpenAI", Kind: ProviderOpenAI, BaseURL: "http://127.0.0.1:1", APIKey: "sk-test", Active: true, IsDefault: true}
+	if err := repo.SaveProvider(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	m := &Model{ProviderID: p.ID, Name: "Whisper", ModelID: "whisper-1", Capability: CapSTT, IsDefault: true, OpenToAll: false, Active: true}
+	if err := repo.SaveModel(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+	gw := NewGateway(repo, denyModelAccess{}, nil)
+	_, err := gw.TranscribeAudio(context.Background(), &platform.AuthContext{UserID: 42}, 0, strings.NewReader("fake"), "call.mp3", "ru")
+	if err == nil {
+		t.Fatal("expected forbidden error, got nil")
+	}
+	if !strings.Contains(err.Error(), "Нет доступа") {
+		t.Fatalf("expected forbidden error, got %v", err)
+	}
+}

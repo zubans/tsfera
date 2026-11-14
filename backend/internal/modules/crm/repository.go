@@ -195,6 +195,8 @@ type Repository interface {
 	// Calls
 	ListCalls(ctx context.Context, f CallFilter) ([]CallRecord, error)
 	GetCall(ctx context.Context, id int64) (*CallRecord, error)
+	UpdateCallTranscript(ctx context.Context, id int64, status, text, errMsg string, transcribedAt *time.Time) error
+	UpdateCallTranscriptError(ctx context.Context, id int64, errMsg string) error
 	GetCallByExternalID(ctx context.Context, externalCallID string) (*CallRecord, error)
 	UpsertCallByExternalID(ctx context.Context, call *CallRecord) error
 	UpdateCallCard(ctx context.Context, call *CallRecord) error

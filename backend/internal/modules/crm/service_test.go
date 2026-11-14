@@ -998,6 +998,34 @@ func (m *memRepo) GetCall(_ context.Context, id int64) (*CallRecord, error) {
 	}
 	return nil, nil
 }
+func (m *memRepo) UpdateCallTranscript(_ context.Context, id int64, status, text, errMsg string, transcribedAt *time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.calls {
+		if c.ID == id {
+			c.TranscriptStatus = status
+			c.TranscriptText = text
+			c.TranscriptError = errMsg
+			c.TranscribedAt = transcribedAt
+			return nil
+		}
+	}
+	return platform.NewNotFound("Звонок не найден")
+}
+func (m *memRepo) UpdateCallTranscriptError(_ context.Context, id int64, errMsg string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.calls {
+		if c.ID == id {
+			if c.TranscriptStatus != "done" || c.TranscriptText == "" {
+				c.TranscriptStatus = "failed"
+			}
+			c.TranscriptError = errMsg
+			return nil
+		}
+	}
+	return platform.NewNotFound("Звонок не найден")
+}
 func (m *memRepo) GetCallByExternalID(_ context.Context, externalCallID string) (*CallRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

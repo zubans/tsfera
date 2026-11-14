@@ -440,7 +440,8 @@ onMounted(() => {
               style="width: 140px"
               :options="[
                 { label: 'Чат / Агент', value: 'chat' },
-                { label: 'Эмбеддинги', value: 'embedding' }
+                { label: 'Эмбеддинги', value: 'embedding' },
+                { label: 'Распознавание речи (STT)', value: 'stt' }
               ]"
             />
             <NButton type="primary" @click="saveModel">Добавить модель</NButton>

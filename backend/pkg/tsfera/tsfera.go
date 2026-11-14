@@ -168,6 +168,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 		sources := collectSources([]platform.Module{usersMod, crmMod, docsMod}, cfg.ExtraModules, cfg.ExtraSources)
 		docFetcher := &docsFetcherAdapter{svc: docsMod.Service}
 		aiMod := ai.NewModule(repos.ai, auth, usersMod.Service, crmMod.Service, docFetcher, bus, logger, sources...)
+		crmMod.Service.SetAudioTranscriber(aiMod.Gateway)
 
 		baseMods := []platform.Module{usersMod, crmMod, docsMod, aiMod}
 		tools := collectTools(baseMods, cfg.ExtraModules, cfg.ExtraTools)

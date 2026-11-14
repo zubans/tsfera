@@ -197,6 +197,7 @@ const executeForm = ref({
 
 const callCardModalOpen = ref(false)
 const editCall = ref<CallRecord | null>(null)
+const transcribingCallId = ref<number | null>(null)
 const callCardForm = ref({
   contractor_id: null as number | null,
   type_of_appeal: '',
@@ -837,6 +838,24 @@ async function sendTransfer() {
   transferModalOpen.value = false
 }
 
+async function transcribeCallRecord(call: CallRecord) {
+  transcribingCallId.value = call.id
+  errorMsg.value = ''
+  try {
+    const updated = await requestJSON<CallRecord>(`/api/v1/crm/calls/${call.id}/transcribe`, {
+      method: 'POST'
+    })
+    if (editCall.value?.id === call.id) {
+      editCall.value = updated
+    }
+    await loadAll()
+  } catch (err) {
+    errorMsg.value = err instanceof ApiError ? err.message : 'Ошибка расшифровки записи звонка'
+  } finally {
+    transcribingCallId.value = null
+  }
+}
+
 const contractColumns: DataTableColumns<MaintenanceContract> = [
   { title: '№ договора', key: 'number' },
   {
@@ -980,7 +999,20 @@ const callColumns: DataTableColumns<CallRecord> = [
                 }
               },
               { default: () => 'Перевод' }
-            )
+            ),
+            r.ext_tracking_id || r.external_call_id?.startsWith('mango:')
+              ? h(
+                  NButton,
+                  {
+                    size: 'tiny',
+                    type: r.transcript_status === 'done' ? 'success' : 'info',
+                    secondary: true,
+                    loading: transcribingCallId.value === r.id,
+                    onClick: () => void transcribeCallRecord(r)
+                  },
+                  { default: () => (r.transcript_status === 'done' ? 'Текст ✓' : 'Расшифр.') }
+                )
+              : null
           ])
         : '—'
   }
@@ -1595,6 +1627,33 @@ onMounted(async () => {
         </div>
         <NFormItem label="Комментарий">
           <NInput v-model:value="callCardForm.comment" type="textarea" :rows="2" />
+        </NFormItem>
+        <NFormItem v-if="editCall" label="Расшифровка звонка (STT)">
+          <NSpace vertical style="width: 100%">
+            <NSpace align="center">
+              <NButton
+                v-if="editCall.ext_tracking_id || editCall.external_call_id?.startsWith('mango:')"
+                size="small"
+                type="info"
+                secondary
+                :loading="transcribingCallId === editCall.id"
+                @click="transcribeCallRecord(editCall)"
+              >
+                {{ editCall.transcript_status === 'done' ? 'Расшифровать заново' : 'Расшифровать запись' }}
+              </NButton>
+              <NTag v-if="editCall.transcript_status" size="small" :type="editCall.transcript_status === 'done' ? 'success' : 'error'">
+                {{ editCall.transcript_status === 'done' ? 'Готово' : 'Ошибка' }}
+              </NTag>
+            </NSpace>
+            <NAlert v-if="editCall.transcript_error" type="error">{{ editCall.transcript_error }}</NAlert>
+            <NInput
+              v-if="editCall.transcript_text"
+              :value="editCall.transcript_text"
+              type="textarea"
+              :rows="4"
+              readonly
+            />
+          </NSpace>
         </NFormItem>
       </NForm>
       <template #footer>
