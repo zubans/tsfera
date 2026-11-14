@@ -136,6 +136,7 @@ func (h *Handler) Mount(r chi.Router) {
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls/{id}", h.getCallCard)
 			cr.With(platform.RequirePermission("crm.call.update")).Put("/calls/{id}", h.updateCallCard)
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/calls/{id}/recording", h.getCallRecording)
+			cr.With(platform.RequirePermission("crm.call.update")).Post("/calls/{id}/transcribe", h.transcribeCall)
 			cr.With(platform.RequirePermission("crm.call.update")).Post("/calls/transfer", h.transferCall)
 			cr.With(platform.RequirePermission("crm.call.view")).Get("/miss-calls", h.listMissCallPool)
 			cr.With(platform.RequirePermission("crm.call.update")).Post("/miss-calls/{callId}/viewed", h.markMissCallViewed)
@@ -1170,6 +1171,21 @@ func (h *Handler) getCallRecording(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+func (h *Handler) transcribeCall(w http.ResponseWriter, r *http.Request) {
+	ac, _ := platform.AuthFromContext(r.Context())
+	id, err := parseIDParam(r, "id")
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	out, err := h.svc.TranscribeCall(r.Context(), ac, id)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	platform.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) transferCall(w http.ResponseWriter, r *http.Request) {

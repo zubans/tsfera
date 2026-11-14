@@ -22,6 +22,7 @@ type ModelCapability string
 const (
 	CapChat      ModelCapability = "chat"
 	CapEmbedding ModelCapability = "embedding"
+	CapSTT       ModelCapability = "stt"
 )
 
 type Provider struct {

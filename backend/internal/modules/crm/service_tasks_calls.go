@@ -1157,6 +1157,46 @@ func (s *Service) GetCurrentCall(ctx context.Context, auth *platform.AuthContext
 	return active, nil
 }
 
+// TranscribeCall скачивает аудиозапись звонка и расшифровывает её в текст через подключённый AudioTranscriber (STT).
+func (s *Service) TranscribeCall(ctx context.Context, auth *platform.AuthContext, callID int64) (*CallRecord, error) {
+	if s.transcriber == nil {
+		return nil, platform.NewNotConfigured("Модуль распознавания речи (STT) не подключён")
+	}
+	contentType, audioBytes, err := s.GetCallRecordMP3(ctx, callID)
+	if err != nil {
+		return nil, err
+	}
+	filename := fmt.Sprintf("call-%d%s", callID, extFromAudioContentType(contentType))
+	text, err := s.transcriber.TranscribeAudio(ctx, auth, 0, bytes.NewReader(audioBytes), filename, "ru")
+	if err != nil {
+		_ = s.repo.UpdateCallTranscriptError(ctx, callID, err.Error())
+		return nil, err
+	}
+	now := s.now()
+	if err := s.repo.UpdateCallTranscript(ctx, callID, "done", text, "", &now); err != nil {
+		return nil, err
+	}
+	return s.repo.GetCall(ctx, callID)
+}
+
+func extFromAudioContentType(contentType string) string {
+	ct := strings.ToLower(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]))
+	switch ct {
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/ogg", "application/ogg":
+		return ".ogg"
+	case "audio/mp4", "audio/m4a", "audio/x-m4a":
+		return ".m4a"
+	case "audio/webm":
+		return ".webm"
+	case "audio/mpeg", "audio/mp3":
+		return ".mp3"
+	default:
+		return ".mp3"
+	}
+}
+
 func firstNonEmpty(vals ...string) string {
 	for _, v := range vals {
 		if s := strings.TrimSpace(v); s != "" {

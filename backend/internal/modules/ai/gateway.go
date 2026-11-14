@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -158,6 +159,101 @@ func (g *Gateway) Embed(ctx context.Context, text string) ([]float64, error) {
 	default:
 		return nil, nil
 	}
+}
+
+// TranscribeAudio расшифровывает аудиозапись в текст через активную STT-модель (OpenAI / OpenAI-compatible /audio/transcriptions).
+func (g *Gateway) TranscribeAudio(ctx context.Context, auth *platform.AuthContext, modelID int64, audio io.Reader, filename string, language string) (string, error) {
+	var m *Model
+	var err error
+	if modelID > 0 {
+		m, err = g.repo.GetModel(ctx, modelID)
+	} else {
+		m, err = g.repo.GetDefaultModel(ctx, CapSTT)
+	}
+	if err != nil {
+		return "", err
+	}
+	if m == nil || !m.Active || m.Capability != CapSTT {
+		return "", platform.NewValidation("Не настроена активная STT-модель для распознавания речи", nil)
+	}
+	if g.access != nil {
+		if auth == nil {
+			if !m.OpenToAll {
+				return "", platform.NewForbidden("Нет доступа к выбранной STT-модели")
+			}
+		} else {
+			allowed, err := g.access.CanAccessModel(ctx, auth, m.ID, m.OpenToAll)
+			if err != nil {
+				return "", err
+			}
+			if !allowed {
+				return "", platform.NewForbidden("Нет доступа к выбранной STT-модели")
+			}
+		}
+	}
+	p, err := g.repo.GetProvider(ctx, m.ProviderID)
+	if err != nil {
+		return "", err
+	}
+	if p == nil || !p.Active {
+		return "", platform.NewValidation("Провайдер STT-модели отключён или не найден", nil)
+	}
+	if p.Kind != ProviderOpenAI && p.Kind != ProviderOpenAICompat {
+		return "", platform.NewValidation("Распознавание речи поддерживается только для OpenAI и OpenAI-compatible провайдеров", nil)
+	}
+
+	if strings.TrimSpace(filename) == "" {
+		filename = "audio.mp3"
+	}
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(fw, audio); err != nil {
+		return "", err
+	}
+	_ = mw.WriteField("model", m.ModelID)
+	if strings.TrimSpace(language) != "" {
+		_ = mw.WriteField("language", strings.TrimSpace(language))
+	}
+	_ = mw.WriteField("response_format", "json")
+	if err := mw.Close(); err != nil {
+		return "", err
+	}
+
+	endpoint := defaultBaseURL(p.Kind, p.BaseURL) + "/audio/transcriptions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if p.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	}
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("STT-запрос не выполнен: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("STT HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(respBytes)))
+	}
+
+	var out struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(respBytes, &out); err != nil {
+		return "", fmt.Errorf("некорректный ответ STT: %w", err)
+	}
+	return strings.TrimSpace(out.Text), nil
 }
 
 func (g *Gateway) recordUsage(ctx context.Context, auth *platform.AuthContext, m *Model, op string, started time.Time, resp *CompletionResponse, callErr error) {

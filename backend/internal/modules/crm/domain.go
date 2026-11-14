@@ -562,8 +562,12 @@ type CallRecord struct {
 	CallResult      int             `json:"call_result"`
 	TypeOfAppeal    string          `json:"type_of_appeal"`
 	Comment         string          `json:"comment"`
-	RecordURL       string          `json:"record_url"`
-	DurationSec     int             `json:"duration_sec"`
+	RecordURL        string          `json:"record_url"`
+	TranscriptText   string          `json:"transcript_text,omitempty"`
+	TranscriptStatus string          `json:"transcript_status,omitempty"`
+	TranscriptError  string          `json:"transcript_error,omitempty"`
+	TranscribedAt    *time.Time      `json:"transcribed_at,omitempty"`
+	DurationSec      int             `json:"duration_sec"`
 	StartedAt       time.Time       `json:"started_at"`
 	AnswerTime      *time.Time      `json:"answer_time,omitempty"`
 	EndedAt         *time.Time      `json:"ended_at,omitempty"`

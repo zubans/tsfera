@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -36,15 +37,26 @@ type Config struct {
 	Clock                  func() time.Time
 }
 
+// AudioTranscriber абстрагирует распознавание речи (STT) для расшифровки записей звонков.
+type AudioTranscriber interface {
+	TranscribeAudio(ctx context.Context, auth *platform.AuthContext, modelID int64, audio io.Reader, filename string, language string) (string, error)
+}
+
 type Service struct {
 	telephonyMu sync.Mutex
 	repo        Repository
 	users       UserDirectory
 	bus         platform.EventBus
 	hub         *WSHub
+	transcriber AudioTranscriber
 	httpClient  *http.Client
 	cfg         Config
 	logger      *slog.Logger
+}
+
+// SetAudioTranscriber подключает STT-провайдера (модуль ai) для расшифровки звонков.
+func (s *Service) SetAudioTranscriber(t AudioTranscriber) {
+	s.transcriber = t
 }
 
 func NewService(

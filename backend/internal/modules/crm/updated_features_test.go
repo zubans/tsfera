@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -1092,5 +1093,75 @@ func TestCallsMissPoolAnalyticsBannersCloudPaymentsDaDataAndXLSX(t *testing.T) {
 	zr, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
 	if err != nil || len(zr.File) < 5 {
 		t.Fatalf("expected valid OOXML xlsx zip archive, err=%v files=%d", err, len(zr.File))
+	}
+}
+
+type mockTranscriber struct {
+	text         string
+	err          error
+	lastFilename string
+}
+
+func (m *mockTranscriber) TranscribeAudio(_ context.Context, _ *platform.AuthContext, _ int64, _ io.Reader, filename string, _ string) (string, error) {
+	m.lastFilename = filename
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.text, nil
+}
+
+func TestTranscribeCall(t *testing.T) {
+	mts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/callRecording/mp3/trk-777" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "audio/mpeg")
+		_, _ = w.Write([]byte("MP3DATA"))
+	}))
+	defer mts.Close()
+
+	repo := newMemRepo()
+	svc := NewService(repo, nil, nil, nil, Config{MTSBaseURL: mts.URL, MTSAPIToken: "tok"}, nil)
+	mt := &mockTranscriber{text: "Котёл не греет воду"}
+	svc.SetAudioTranscriber(mt)
+
+	call := &CallRecord{
+		ExternalCallID: "ext-777",
+		ExtTrackingID:  "trk-777",
+		Direction:      "incoming",
+		Status:         "ended",
+		CallerPhone:    "9991112233",
+		StartedAt:      time.Now(),
+	}
+	if err := repo.UpsertCallByExternalID(context.Background(), call); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := svc.TranscribeCall(context.Background(), nil, call.ID)
+	if err != nil {
+		t.Fatalf("TranscribeCall failed: %v", err)
+	}
+	if !strings.HasPrefix(mt.lastFilename, "call-") || !strings.HasSuffix(mt.lastFilename, ".mp3") {
+		t.Fatalf("expected filename call-<id>.mp3, got %q", mt.lastFilename)
+	}
+	if updated.TranscriptStatus != "done" || updated.TranscriptText != "Котёл не греет воду" || updated.TranscribedAt == nil {
+		t.Fatalf("unexpected transcript state: %+v", updated)
+	}
+
+	// Повторная расшифровка с ошибкой не должна затирать предыдущий успешный результат
+	mt.err = platform.NewValidation("stt timeout", nil)
+	if _, err := svc.TranscribeCall(context.Background(), nil, call.ID); err == nil {
+		t.Fatal("expected error on failed re-transcription")
+	}
+	afterErr, err := repo.GetCall(context.Background(), call.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterErr.TranscriptStatus != "done" || afterErr.TranscriptText != "Котёл не греет воду" || afterErr.TranscribedAt == nil {
+		t.Fatalf("previous transcript was destroyed on error: %+v", afterErr)
+	}
+	if afterErr.TranscriptError != "stt timeout" {
+		t.Fatalf("expected transcript_error 'stt timeout', got %q", afterErr.TranscriptError)
 	}
 }
