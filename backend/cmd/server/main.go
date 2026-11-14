@@ -30,6 +30,10 @@ func main() {
 	defer pool.Close()
 
 	cfg := tsfera.Config{
+		TelephonyProvider: envOr("TELEPHONY_PROVIDER", "mts"),
+		MangoBaseURL:      envOr("MANGO_BASE_URL", "https://app.mango-office.ru/vpbx"),
+		MangoAPIKey:       os.Getenv("MANGO_API_KEY"), MangoAPISecret: os.Getenv("MANGO_API_SECRET"),
+		SIPWebSocketURL:        os.Getenv("SIP_WS_URL"),
 		Pool:                   pool,
 		Logger:                 logger,
 		StorageDir:             envOr("TSFERA_STORAGE_DIR", "./data/attachments"),

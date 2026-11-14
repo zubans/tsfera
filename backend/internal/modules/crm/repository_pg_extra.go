@@ -1067,13 +1067,7 @@ func (r *PgRepository) CallConversionReport(ctx context.Context, f ReportFilter)
 
 // BuildCallConversionMatrix строит матрицу конверсии звонков (общая логика для БД и unit-тестов).
 func BuildCallConversionMatrix(counts map[string]map[int]int) *CallConversionReport {
-	mainResults := []int{
-		CallResultCreateContract,
-		CallResultExtendContract,
-		CallResultCreateApplication,
-		CallResultConsultation,
-		CallResultRecall,
-	}
+
 	rowsDef := []struct {
 		key    string
 		label  string
@@ -1088,7 +1082,21 @@ func BuildCallConversionMatrix(counts map[string]map[int]int) *CallConversionRep
 		{CallAppealOther, "Прочее", false},
 	}
 
+	for _, option := range ExtendedCallTypesOfAppeal {
+		if strings.HasPrefix(option.Key, "import_") {
+			rowsDef = append(rowsDef, struct {
+				key    string
+				label  string
+				target bool
+			}{option.Key, option.Label, option.ID == 1001 || option.ID == 1002 || option.ID == 1003 || (option.ID >= 1009 && option.ID <= 1013) || option.ID == 1015})
+		}
+	}
 	normalizeAppeal := func(k string) string {
+		for _, option := range ExtendedCallTypesOfAppeal {
+			if option.Key == k && strings.HasPrefix(k, "import_") {
+				return k
+			}
+		}
 		switch k {
 		case CallAppealGeneralQuestion:
 			return CallAppealSpecify
@@ -1130,13 +1138,12 @@ func BuildCallConversionMatrix(counts map[string]map[int]int) *CallConversionRep
 		}
 		for res, cnt := range src {
 			row.Total += cnt
-			if isMain[res] {
-				row.Results[res] += cnt
-			} else {
+			row.Results[res] += cnt
+			if !isMain[res] {
 				row.OtherCount += cnt
 			}
 		}
-		for _, res := range mainResults {
+		for res := range row.Results {
 			if row.Total > 0 {
 				row.Percents[res] = math.Round(float64(row.Results[res])*1000/float64(row.Total)) / 10
 			}

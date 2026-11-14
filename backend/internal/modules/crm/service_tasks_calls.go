@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -582,6 +583,9 @@ func stripTelURI(raw string) string {
 }
 
 func (s *Service) HandleMTSWebhook(ctx context.Context, headerToken string, rawBody []byte) (*CallRecord, error) {
+	if s.cfg.TelephonyProvider == "mango" {
+		return nil, platform.NewForbidden("Выбран провайдер MANGO")
+	}
 	if s.cfg.MTSWebhookSecret != "" {
 		if subtle.ConstantTimeCompare([]byte(headerToken), []byte(s.cfg.MTSWebhookSecret)) != 1 {
 			return nil, platform.NewUnauthorized("Неверный токен вебхука МТС ВАТС")
@@ -591,6 +595,11 @@ func (s *Service) HandleMTSWebhook(ctx context.Context, headerToken string, rawB
 	if err := json.Unmarshal(rawBody, &in); err != nil {
 		return nil, platform.NewValidation("Некорректный JSON вебхука МТС", nil)
 	}
+	return s.applyCallEvent(ctx, in, rawBody)
+}
+
+// applyCallEvent получает уже проверенное событие от адаптера провайдера.
+func (s *Service) applyCallEvent(ctx context.Context, in MTSWebhookInput, rawBody []byte) (*CallRecord, error) {
 	if strings.EqualFold(strings.TrimSpace(in.EventType), "CHECK_ALIVE") {
 		return nil, nil
 	}
@@ -783,6 +792,9 @@ func (s *Service) HandleMTSWebhook(ctx context.Context, headerToken string, rawB
 	}
 
 	if err := s.repo.UpsertCallByExternalID(ctx, rec); err != nil {
+		if errors.Is(err, errStaleCallEvent) {
+			return s.repo.GetCallByExternalID(ctx, rec.ExternalCallID)
+		}
 		return nil, err
 	}
 
@@ -837,6 +849,11 @@ func (s *Service) HandleMTSWebhook(ctx context.Context, headerToken string, rawB
 }
 
 func isValidCallAppeal(appeal string) bool {
+	for _, option := range ExtendedCallTypesOfAppeal {
+		if option.Key == appeal {
+			return true
+		}
+	}
 	switch appeal {
 	case "", CallAppealGeneralQuestion, CallAppealServiceRequest, CallAppealBuyParts,
 		CallAppealToContract, CallAppealServiceWork, CallAppealSaleEquipment,
@@ -856,10 +873,10 @@ func (s *Service) UpdateCallCard(ctx context.Context, auth *platform.AuthContext
 	if rec == nil {
 		return nil, platform.NewNotFound("Звонок не найден")
 	}
-	if in.CallerType < 0 || in.CallerType > CallerTypeOther {
+	if !knownEnumID(CallerTypeOptions, in.CallerType) {
 		return nil, platform.NewValidation("Неизвестный тип звонящего", map[string]string{"caller_type": "Неверное значение"})
 	}
-	if in.CallResult < 0 || in.CallResult > CallResultRefusal {
+	if !knownEnumID(CallResultOptions, in.CallResult) {
 		return nil, platform.NewValidation("Неизвестный результат звонка", map[string]string{"call_result": "Неверное значение"})
 	}
 	appeal := strings.TrimSpace(in.TypeOfAppeal)
@@ -968,6 +985,12 @@ func (s *Service) SyncMissedCallPool(ctx context.Context) (int, error) {
 
 // BlindTransfer отправляет команду перевода звонка на внешний номер через МТС ВАТС API.
 func (s *Service) BlindTransfer(ctx context.Context, auth *platform.AuthContext, externalCallID, targetPhone string) error {
+	if strings.HasPrefix(externalCallID, "mango:") {
+		return s.mangoAdapter().Transfer(ctx, strings.TrimPrefix(externalCallID, "mango:"), targetPhone)
+	}
+	if s.cfg.TelephonyProvider == "mango" {
+		return platform.NewValidation("Вызов не принадлежит MANGO", nil)
+	}
 	if s.cfg.MTSBaseURL == "" || s.cfg.MTSAPIToken == "" {
 		return platform.NewNotConfigured("Интеграция МТС ВАТС (MTS_BASE_URL / MTS_API_TOKEN) не настроена")
 	}
@@ -1030,6 +1053,17 @@ func (s *Service) GetCallRecordMP3(ctx context.Context, callID int64) (string, [
 	if rec == nil {
 		return "", nil, platform.NewNotFound("Звонок не найден")
 	}
+	if strings.HasPrefix(rec.ExternalCallID, "mango:") {
+		store, ok := s.repo.(TelephonyMetadataRepository)
+		if !ok {
+			return "", nil, platform.NewNotConfigured("Хранилище записей не настроено")
+		}
+		id, err := store.GetMangoRecording(ctx, strings.TrimPrefix(rec.ExternalCallID, "mango:"))
+		if err != nil {
+			return "", nil, err
+		}
+		return s.mangoAdapter().Recording(ctx, id)
+	}
 	if s.cfg.MTSBaseURL == "" || s.cfg.MTSAPIToken == "" {
 		return "", nil, platform.NewNotConfigured("Интеграция МТС ВАТС (MTS_BASE_URL / MTS_API_TOKEN) не настроена")
 	}
@@ -1067,7 +1101,7 @@ func (s *Service) GetCurrentCall(ctx context.Context, auth *platform.AuthContext
 	if auth == nil {
 		return nil, platform.NewUnauthorized("Требуется авторизация")
 	}
-	if s.cfg.MTSBaseURL != "" && s.cfg.MTSAPIToken != "" {
+	if s.cfg.TelephonyProvider != "mango" && s.cfg.MTSBaseURL != "" && s.cfg.MTSAPIToken != "" {
 		if sip, err := s.repo.GetSipAccountByUser(ctx, auth.UserID); err == nil && sip != nil && strings.TrimSpace(sip.AbonentID) != "" {
 			endpoint := fmt.Sprintf("%s/user/%s/calls", strings.TrimRight(s.cfg.MTSBaseURL, "/"), url.PathEscape(strings.TrimSpace(sip.AbonentID)))
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

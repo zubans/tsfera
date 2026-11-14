@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BusinessDataDetails from './BusinessDataDetails.vue'
 import { ref, computed, watch, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -48,6 +49,12 @@ import type {
   Banner
 } from '@/shared/types/domain'
 
+const importedDetails = ref<Application | Certificate | null>(null)
+const importedOpen = ref(false)
+function showImportedDetails(record: Application | Certificate) {
+  importedDetails.value = record
+  importedOpen.value = true
+}
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -550,6 +557,8 @@ async function askAIAboutCert(cert: Certificate) {
 }
 
 const appColumns: DataTableColumns<Application> = [
+  { title: 'Номер', key: 'number', render: (r) => r.number ?? r.id },
+  { title: 'Связи и данные', key: 'details', render: (r) => h(NButton, { size: 'tiny', onClick: () => showImportedDetails(r) }, { default: () => r.incomplete ? 'Неполная запись' : 'Подробнее' }) },
   { title: 'ID', key: 'id', width: 65 },
   {
     title: 'Плановый слот',
@@ -631,6 +640,8 @@ const appColumns: DataTableColumns<Application> = [
 ]
 
 const certColumns: DataTableColumns<Certificate> = [
+  { title: 'Номер', key: 'number', render: (r) => r.number ?? r.id },
+  { title: 'Связи и данные', key: 'details', render: (r) => h(NButton, { size: 'tiny', onClick: () => showImportedDetails(r) }, { default: () => 'Подробнее' }) },
   { title: 'ID', key: 'id', width: 65 },
   { title: 'Дата работ', key: 'work_date', render: (r) => formatDateOnly(r.work_date) },
   { title: 'Контрагент', key: 'contractor_name' },
@@ -872,6 +883,9 @@ onMounted(async () => {
       </NTabPane>
     </NTabs>
 
+    <NModal v-model:show="importedOpen" preset="card" title="Данные документа" style="width: 900px; max-width: 96vw">
+      <BusinessDataDetails v-if="importedDetails" :record="importedDetails" />
+    </NModal>
     <NModal
       v-model:show="certModalOpen"
       preset="card"

@@ -29,6 +29,8 @@ func NewHandler(svc *Service, auth platform.Authorizer, logger *slog.Logger) *Ha
 func (h *Handler) Mount(r chi.Router) {
 	// Публичный вебхук МТС ВАТС (авторизация по x-auth-token внутри сервиса).
 	r.Post("/api/v1/crm/webhooks/mts", h.mtsWebhook)
+	r.Post("/api/v1/crm/webhooks/mango/events/{kind}", h.mangoWebhook)
+	r.Post("/api/v1/crm/webhooks/mango/result/{kind}", h.mangoWebhook)
 	// Legacy-путь вебхука для плавного переключения телефонии.
 	r.Post("/telephony/webhook", h.mtsWebhook)
 	// Публичные вебхуки CloudPayments (pay / recurrent, авторизация Content-HMAC).

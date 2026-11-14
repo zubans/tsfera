@@ -266,7 +266,7 @@ const taskResultOptions = computed(() =>
 )
 const callAppealOptions = computed(() =>
   (enums.value.call_types_of_appeal ?? [])
-    .filter((o) => !o.legacy)
+    .filter((o) => !o.legacy || o.key.startsWith('import_'))
     .map((o) => ({ label: o.label, value: o.key }))
 )
 const allCallAppealOptions = computed(() =>
@@ -571,7 +571,7 @@ function openTaskModal(t?: CRMTask) {
         status: t.status,
         priority: t.priority,
         assigned_user_id: t.assigned_user_id ?? null,
-        plan_datetime_to: toDatetimeLocal(t.plan_datetime_to),
+        plan_datetime_to: t.missing_deadline ? '' : toDatetimeLocal(t.plan_datetime_to),
         is_urgent: t.is_urgent,
         note: t.note
       }
@@ -900,7 +900,7 @@ const taskColumns: DataTableColumns<CRMTask> = [
   { title: 'Тип', key: 'task_type' },
   { title: 'Контрагент', key: 'contractor_name' },
   { title: 'Исполнитель', key: 'assigned_name' },
-  { title: 'Дедлайн', key: 'plan_datetime_to', render: (r) => formatDateTime(r.plan_datetime_to) },
+  { title: 'Дедлайн', key: 'plan_datetime_to', render: (r) => r.missing_deadline ? 'Не указан' : formatDateTime(r.plan_datetime_to) },
   {
     title: 'Статус',
     key: 'status',
@@ -1662,11 +1662,11 @@ onMounted(async () => {
       </template>
     </NModal>
 
-    <NModal v-model:show="sipModalOpen" preset="card" title="SIP-аккаунт (МТС ВАТС / WebRTC)" style="width: 520px">
+    <NModal v-model:show="sipModalOpen" preset="card" title="SIP-аккаунт / WebRTC" style="width: 520px">
       <NForm label-placement="top">
         <NSpace>
           <NFormItem label="Название линии" style="width: 220px"><NInput v-model:value="sipForm.name" /></NFormItem>
-          <NFormItem label="ID абонента МТС (abonentId)" style="width: 240px"><NInput v-model:value="sipForm.abonent_id" /></NFormItem>
+          <NFormItem label="ID абонента / внутренний номер MANGO" style="width: 240px"><NInput v-model:value="sipForm.abonent_id" /></NFormItem>
         </NSpace>
         <NSpace>
           <NFormItem label="Сотрудник" style="width: 230px">

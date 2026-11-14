@@ -12,12 +12,19 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zubans/tsfera/backend/pkg/platform"
 )
 
 type Config struct {
+	TelephonyProvider string
+	MangoBaseURL      string
+	MangoAPIKey       string
+	MangoAPISecret    string
+	SIPWebSocketURL   string
+
 	MTSWebhookSecret       string
 	MTSBaseURL             string
 	MTSAPIToken            string
@@ -30,13 +37,14 @@ type Config struct {
 }
 
 type Service struct {
-	repo       Repository
-	users      UserDirectory
-	bus        platform.EventBus
-	hub        *WSHub
-	httpClient *http.Client
-	cfg        Config
-	logger     *slog.Logger
+	telephonyMu sync.Mutex
+	repo        Repository
+	users       UserDirectory
+	bus         platform.EventBus
+	hub         *WSHub
+	httpClient  *http.Client
+	cfg         Config
+	logger      *slog.Logger
 }
 
 func NewService(
@@ -1546,7 +1554,10 @@ func (s *Service) GetSoftPhoneConfig(ctx context.Context, auth *platform.AuthCon
 	if proto == "" {
 		proto = "wss"
 	}
-	wsURL := fmt.Sprintf("%s://%s:%d/ws", proto, sip.Server, sip.Port)
+	wsURL := strings.TrimSpace(s.cfg.SIPWebSocketURL)
+	if wsURL == "" {
+		wsURL = fmt.Sprintf("%s://%s:%d/ws", proto, sip.Server, sip.Port)
+	}
 	return &SoftPhoneConfig{
 		Enabled:   true,
 		Name:      sip.Name,

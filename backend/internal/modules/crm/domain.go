@@ -154,6 +154,7 @@ var (
 		{ID: 1, Key: PaymentOptionCash, Label: "Наличные"},
 		{ID: 2, Key: PaymentOptionBank, Label: "Оплата по счету"},
 		{ID: 3, Key: PaymentOptionQRCode, Label: "Оплата по qr коду"},
+		{ID: 4, Key: "card", Label: "Оплата по карте"},
 	}
 	TaskResults = []EnumOption{
 		{ID: 1, Key: TaskResultAnswered, Label: "Дозвонился"},
@@ -220,25 +221,26 @@ type SoftPhoneConfig struct {
 }
 
 type Contractor struct {
-	ID              int64               `json:"id"`
-	Name            string              `json:"name"`
-	FirstName       string              `json:"first_name"`
-	SecondName      string              `json:"second_name"`
-	LastName        string              `json:"last_name"`
-	SubdivisionID   *int64              `json:"subdivision_id,omitempty"`
-	Type            ContractorType      `json:"type"`
-	IsLegalEntity   bool                `json:"is_legal_entity"`
-	TrafficSourceID *int64              `json:"traffic_source_id,omitempty"`
-	LegalEntity     *LegalEntity        `json:"legal_entity,omitempty"`
-	Note            string              `json:"note"`
-	CreatedBy       int64               `json:"created_by"`
-	Deleted         bool                `json:"deleted"`
-	Phones          []ContractorPhone   `json:"phones,omitempty"`
-	Emails          []ContractorEmail   `json:"emails,omitempty"`
-	Addresses       []ContractorAddress `json:"addresses,omitempty"`
-	Score           float64             `json:"score,omitempty"`
-	CreatedAt       time.Time           `json:"created_at"`
-	UpdatedAt       time.Time           `json:"updated_at"`
+	ClientCategoryID *int                `json:"client_category_id,omitempty"`
+	ID               int64               `json:"id"`
+	Name             string              `json:"name"`
+	FirstName        string              `json:"first_name"`
+	SecondName       string              `json:"second_name"`
+	LastName         string              `json:"last_name"`
+	SubdivisionID    *int64              `json:"subdivision_id,omitempty"`
+	Type             ContractorType      `json:"type"`
+	IsLegalEntity    bool                `json:"is_legal_entity"`
+	TrafficSourceID  *int64              `json:"traffic_source_id,omitempty"`
+	LegalEntity      *LegalEntity        `json:"legal_entity,omitempty"`
+	Note             string              `json:"note"`
+	CreatedBy        int64               `json:"created_by"`
+	Deleted          bool                `json:"deleted"`
+	Phones           []ContractorPhone   `json:"phones,omitempty"`
+	Emails           []ContractorEmail   `json:"emails,omitempty"`
+	Addresses        []ContractorAddress `json:"addresses,omitempty"`
+	Score            float64             `json:"score,omitempty"`
+	CreatedAt        time.Time           `json:"created_at"`
+	UpdatedAt        time.Time           `json:"updated_at"`
 }
 
 type SimilarContractorMatch struct {
@@ -347,42 +349,48 @@ type MaintenanceContract struct {
 }
 
 type Application struct {
-	ID               int64          `json:"id"`
-	ContractorID     int64          `json:"contractor_id"`
-	ContractorName   string         `json:"contractor_name,omitempty"`
-	AddressID        int64          `json:"address_id"`
-	AddressText      string         `json:"address_text,omitempty"`
-	EngineerID       int64          `json:"engineer_id"`
-	EngineerName     string         `json:"engineer_name,omitempty"`
-	EngineerColor    string         `json:"engineer_color,omitempty"`
-	SubdivisionID    *int64         `json:"subdivision_id,omitempty"`
-	TrafficSourceID  *int64         `json:"traffic_source_id,omitempty"`
-	PlannedSum       float64        `json:"planned_sum"`
-	WorkWindowFrom   *time.Time     `json:"work_window_from,omitempty"`
-	WorkWindowTo     *time.Time     `json:"work_window_to,omitempty"`
-	ExecutorIDs      []int64        `json:"executor_ids,omitempty"`
-	ExecutorNames    []string       `json:"executor_names,omitempty"`
-	AnalyticID       *int64         `json:"analytic_id,omitempty"`
-	AnalyticRating   *int           `json:"analytic_rating,omitempty"`
-	CreatedBy        int64          `json:"created_by"`
-	PlanDatetimeFrom time.Time      `json:"plan_datetime_from"`
-	PlanDatetimeTo   time.Time      `json:"plan_datetime_to"`
-	Status           DocumentStatus `json:"status"`
-	IsComplete       bool           `json:"is_complete"`
-	IsDuty           bool           `json:"is_duty"`
-	WorkTypes        []string       `json:"work_types"`
-	PriceNote        string         `json:"price_note"`
-	Comment          string         `json:"comment"`
-	SpecialNotes     string         `json:"special_notes"`
-	NotesViewed      bool           `json:"notes_viewed"`
-	Rating           *int           `json:"rating,omitempty"`
-	RatingComment    string         `json:"rating_comment"`
-	EquipmentIDs     []int64        `json:"equipment_ids"`
-	SerialNumbers    []string       `json:"serial_numbers"`
-	ActsTotalAmount  float64        `json:"acts_total_amount,omitempty"`
-	Deleted          bool           `json:"deleted"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	PhoneIDs         []int64         `json:"phone_ids"`
+	WorkflowStatus   *int            `json:"workflow_status,omitempty"`
+	Incomplete       bool            `json:"incomplete"`
+	Number           *int64          `json:"number,omitempty"`
+	SourceData       json.RawMessage `json:"source_data,omitempty"`
+	SourceRelations  json.RawMessage `json:"source_relations,omitempty"`
+	ID               int64           `json:"id"`
+	ContractorID     int64           `json:"contractor_id"`
+	ContractorName   string          `json:"contractor_name,omitempty"`
+	AddressID        int64           `json:"address_id"`
+	AddressText      string          `json:"address_text,omitempty"`
+	EngineerID       int64           `json:"engineer_id"`
+	EngineerName     string          `json:"engineer_name,omitempty"`
+	EngineerColor    string          `json:"engineer_color,omitempty"`
+	SubdivisionID    *int64          `json:"subdivision_id,omitempty"`
+	TrafficSourceID  *int64          `json:"traffic_source_id,omitempty"`
+	PlannedSum       float64         `json:"planned_sum"`
+	WorkWindowFrom   *time.Time      `json:"work_window_from,omitempty"`
+	WorkWindowTo     *time.Time      `json:"work_window_to,omitempty"`
+	ExecutorIDs      []int64         `json:"executor_ids,omitempty"`
+	ExecutorNames    []string        `json:"executor_names,omitempty"`
+	AnalyticID       *int64          `json:"analytic_id,omitempty"`
+	AnalyticRating   *int            `json:"analytic_rating,omitempty"`
+	CreatedBy        int64           `json:"created_by"`
+	PlanDatetimeFrom time.Time       `json:"plan_datetime_from"`
+	PlanDatetimeTo   time.Time       `json:"plan_datetime_to"`
+	Status           DocumentStatus  `json:"status"`
+	IsComplete       bool            `json:"is_complete"`
+	IsDuty           bool            `json:"is_duty"`
+	WorkTypes        []string        `json:"work_types"`
+	PriceNote        string          `json:"price_note"`
+	Comment          string          `json:"comment"`
+	SpecialNotes     string          `json:"special_notes"`
+	NotesViewed      bool            `json:"notes_viewed"`
+	Rating           *int            `json:"rating,omitempty"`
+	RatingComment    string          `json:"rating_comment"`
+	EquipmentIDs     []int64         `json:"equipment_ids"`
+	SerialNumbers    []string        `json:"serial_numbers"`
+	ActsTotalAmount  float64         `json:"acts_total_amount,omitempty"`
+	Deleted          bool            `json:"deleted"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
 }
 
 // CalendarEvent представляет карточку заявки в календаре со сводкой телефонов, оборудования, суммы актов и флагом непрочитанных замечаний.
@@ -443,6 +451,10 @@ type CertificateTelemetry struct {
 }
 
 type Certificate struct {
+	Equipments                 json.RawMessage       `json:"equipments"`
+	Number                     *int64                `json:"number,omitempty"`
+	SourceData                 json.RawMessage       `json:"source_data,omitempty"`
+	SourceRelations            json.RawMessage       `json:"source_relations,omitempty"`
 	ID                         int64                 `json:"id"`
 	ApplicationID              *int64                `json:"application_id,omitempty"`
 	MaintenanceContractID      *int64                `json:"maintenance_contract_id,omitempty"`
@@ -478,6 +490,7 @@ type Certificate struct {
 }
 
 type Task struct {
+	MissingDeadline   bool       `json:"missing_deadline"`
 	ID                int64      `json:"id"`
 	ContractorID      *int64     `json:"contractor_id,omitempty"`
 	ContractorName    string     `json:"contractor_name,omitempty"`

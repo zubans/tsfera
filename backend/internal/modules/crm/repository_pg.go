@@ -298,6 +298,9 @@ func (r *PgRepository) SearchContractors(ctx context.Context, f ContractorFilter
 }
 
 func (r *PgRepository) hydrateContractorRelations(ctx context.Context, c *Contractor) error {
+	if err := r.db.QueryRow(ctx, "SELECT client_category_id FROM crm_contractors WHERE id=$1", c.ID).Scan(&c.ClientCategoryID); err != nil {
+		return err
+	}
 	pRows, err := r.db.Query(ctx, `
 		SELECT id, contractor_id, phone, note, deleted, created_at
 		FROM crm_contractor_phones
@@ -1034,16 +1037,18 @@ func (r *PgRepository) HasEngineerTimeOverlap(ctx context.Context, engineerID in
 
 func scanApplication(row pgx.Row) (*Application, error) {
 	var a Application
-	var wtRaw, eqRaw, snRaw, exRaw []byte
+	var wtRaw, eqRaw, snRaw, exRaw, phonesRaw []byte
+	var contractorID, addressID *int64
+	var planFrom, planTo *time.Time
 	err := row.Scan(
-		&a.ID, &a.ContractorID, &a.ContractorName, &a.AddressID, &a.AddressText,
+		&a.ID, &contractorID, &a.ContractorName, &addressID, &a.AddressText,
 		&a.EngineerID, &a.SubdivisionID, &a.TrafficSourceID, &a.PlannedSum,
 		&a.WorkWindowFrom, &a.WorkWindowTo, &exRaw,
-		&a.CreatedBy, &a.PlanDatetimeFrom, &a.PlanDatetimeTo,
+		&a.CreatedBy, &planFrom, &planTo,
 		&a.Status, &a.IsComplete, &a.IsDuty, &wtRaw, &a.PriceNote, &a.Comment,
 		&a.SpecialNotes, &a.NotesViewed, &a.Rating, &a.RatingComment, &eqRaw, &snRaw,
 		&a.AnalyticID, &a.AnalyticRating,
-		&a.Deleted, &a.CreatedAt, &a.UpdatedAt,
+		&a.Deleted, &a.CreatedAt, &a.UpdatedAt, &a.Number, &a.WorkflowStatus, &a.SourceData, &a.SourceRelations, &phonesRaw,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -1051,6 +1056,20 @@ func scanApplication(row pgx.Row) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.Incomplete = contractorID == nil || addressID == nil || planFrom == nil || planTo == nil
+	if contractorID != nil {
+		a.ContractorID = *contractorID
+	}
+	if addressID != nil {
+		a.AddressID = *addressID
+	}
+	if planFrom != nil {
+		a.PlanDatetimeFrom = *planFrom
+	}
+	if planTo != nil {
+		a.PlanDatetimeTo = *planTo
+	}
+	_ = json.Unmarshal(phonesRaw, &a.PhoneIDs)
 	_ = json.Unmarshal(wtRaw, &a.WorkTypes)
 	_ = json.Unmarshal(eqRaw, &a.EquipmentIDs)
 	_ = json.Unmarshal(snRaw, &a.SerialNumbers)
@@ -1108,17 +1127,19 @@ func (r *PgRepository) ListApplications(ctx context.Context, f ApplicationFilter
 	}
 	args = append(args, limit, offset)
 	sql := fmt.Sprintf(`
-		SELECT a.id, a.contractor_id, c.name, a.address_id, ca.address,
+		SELECT a.id, a.contractor_id, COALESCE(c.name,''), a.address_id, COALESCE(ca.address,''),
 		       a.engineer_id, a.subdivision_id, a.traffic_source_id, a.planned_sum,
 		       a.work_window_from, a.work_window_to, a.executor_ids,
 		       a.created_by, a.plan_datetime_from, a.plan_datetime_to,
 		       a.status, a.is_complete, a.is_duty, a.work_types, a.price_note, a.comment,
 		       a.special_notes, a.notes_viewed, a.rating, a.rating_comment, a.equipment_ids, a.serial_numbers,
 		       an.id, an.rating,
-		       a.deleted, a.created_at, a.updated_at
+		       a.deleted, a.created_at, a.updated_at, a.number, a.workflow_status, a.source_data, a.source_relations || jsonb_build_object('application_phones',
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object('id',ap.id,'phone_id',ap.phone_id,'phone',cp.phone,'unresolved_phone_id',ap.unresolved_phone_id) ORDER BY ap.id) FROM crm_application_phones ap LEFT JOIN crm_contractor_phones cp ON cp.id=ap.phone_id WHERE ap.application_id=a.id),'[]'::jsonb)),
+               COALESCE((SELECT jsonb_agg(ap.phone_id ORDER BY ap.id) FROM crm_application_phones ap WHERE ap.application_id=a.id AND ap.phone_id IS NOT NULL),'[]'::jsonb)
 		FROM crm_applications a
-		JOIN crm_contractors c ON c.id = a.contractor_id
-		JOIN crm_contractor_addresses ca ON ca.id = a.address_id
+		LEFT JOIN crm_contractors c ON c.id = a.contractor_id
+		LEFT JOIN crm_contractor_addresses ca ON ca.id = a.address_id
 		LEFT JOIN LATERAL (
 			SELECT an2.id, an2.rating
 			FROM crm_certificates cert2
@@ -1168,12 +1189,12 @@ func (r *PgRepository) ListCalendarEvents(ctx context.Context, from, to time.Tim
 	sql := fmt.Sprintf(`
 		SELECT
 			a.id,
-			c.name,
+			COALESCE(c.name,''),
 			a.plan_datetime_from,
 			a.plan_datetime_to,
-			a.contractor_id,
-			a.address_id,
-			ca.address,
+			COALESCE(a.contractor_id,0),
+			COALESCE(a.address_id,0),
+			COALESCE(ca.address,''),
 			a.engineer_id,
 			a.status,
 			a.is_complete,
@@ -1193,7 +1214,7 @@ func (r *PgRepository) ListCalendarEvents(ctx context.Context, from, to time.Tim
 			COALESCE((
 				SELECT json_agg(cp.phone)
 				FROM crm_contractor_phones cp
-				WHERE cp.contractor_id = a.contractor_id AND cp.deleted = FALSE
+				WHERE cp.deleted = FALSE AND (EXISTS(SELECT 1 FROM crm_application_phones ap WHERE ap.application_id=a.id AND ap.phone_id=cp.id) OR (NOT EXISTS(SELECT 1 FROM crm_application_phones ap WHERE ap.application_id=a.id) AND cp.contractor_id=a.contractor_id))
 			), '[]'::json) AS phones,
 			COALESCE((
 				SELECT json_agg(e.name)
@@ -1207,8 +1228,8 @@ func (r *PgRepository) ListCalendarEvents(ctx context.Context, from, to time.Tim
 				WHERE cert.application_id = a.id AND cert.deleted = FALSE
 			), 0) AS acts_sum
 		FROM crm_applications a
-		JOIN crm_contractors c ON c.id = a.contractor_id
-		JOIN crm_contractor_addresses ca ON ca.id = a.address_id
+		LEFT JOIN crm_contractors c ON c.id = a.contractor_id
+		LEFT JOIN crm_contractor_addresses ca ON ca.id = a.address_id
 		LEFT JOIN LATERAL (
 			SELECT an2.id, an2.rating
 			FROM crm_certificates cert2
@@ -1257,17 +1278,19 @@ func (r *PgRepository) ListCalendarEvents(ctx context.Context, from, to time.Tim
 
 func (r *PgRepository) GetApplication(ctx context.Context, id int64) (*Application, error) {
 	return scanApplication(r.db.QueryRow(ctx, `
-		SELECT a.id, a.contractor_id, c.name, a.address_id, ca.address,
+		SELECT a.id, a.contractor_id, COALESCE(c.name,''), a.address_id, COALESCE(ca.address,''),
 		       a.engineer_id, a.subdivision_id, a.traffic_source_id, a.planned_sum,
 		       a.work_window_from, a.work_window_to, a.executor_ids,
 		       a.created_by, a.plan_datetime_from, a.plan_datetime_to,
 		       a.status, a.is_complete, a.is_duty, a.work_types, a.price_note, a.comment,
 		       a.special_notes, a.notes_viewed, a.rating, a.rating_comment, a.equipment_ids, a.serial_numbers,
 		       an.id, an.rating,
-		       a.deleted, a.created_at, a.updated_at
+		       a.deleted, a.created_at, a.updated_at, a.number, a.workflow_status, a.source_data, a.source_relations || jsonb_build_object('application_phones',
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object('id',ap.id,'phone_id',ap.phone_id,'phone',cp.phone,'unresolved_phone_id',ap.unresolved_phone_id) ORDER BY ap.id) FROM crm_application_phones ap LEFT JOIN crm_contractor_phones cp ON cp.id=ap.phone_id WHERE ap.application_id=a.id),'[]'::jsonb)),
+               COALESCE((SELECT jsonb_agg(ap.phone_id ORDER BY ap.id) FROM crm_application_phones ap WHERE ap.application_id=a.id AND ap.phone_id IS NOT NULL),'[]'::jsonb)
 		FROM crm_applications a
-		JOIN crm_contractors c ON c.id = a.contractor_id
-		JOIN crm_contractor_addresses ca ON ca.id = a.address_id
+		LEFT JOIN crm_contractors c ON c.id = a.contractor_id
+		LEFT JOIN crm_contractor_addresses ca ON ca.id = a.address_id
 		LEFT JOIN LATERAL (
 			SELECT an2.id, an2.rating
 			FROM crm_certificates cert2
@@ -1355,7 +1378,8 @@ const selectCertificateSQL = `
 	       cert.work_types, cert.spare_parts, cert.results, cert.special_notes, cert.other_note,
 	       cert.notes_viewed, cert.recommendation, cert.comment, cert.status,
 	       an.id, an.rating,
-	       cert.deleted, cert.created_at, cert.updated_at
+	       cert.deleted, cert.created_at, cert.updated_at, cert.number, cert.source_data, cert.source_relations,
+           COALESCE((SELECT jsonb_agg(jsonb_build_object('id',ce.id,'equipment_id',ce.equipment_id,'equipment_name',(SELECT name FROM crm_equipments WHERE id=ce.equipment_id),'serial_number',ce.serial_number) ORDER BY ce.id) FROM crm_certificate_equipments ce WHERE ce.certificate_id=cert.id),'[]'::jsonb)
 	FROM crm_certificates cert
 	JOIN crm_contractors c ON c.id = cert.contractor_id
 	JOIN crm_contractor_addresses ca ON ca.id = cert.address_id
@@ -1378,7 +1402,7 @@ func scanCertificate(row pgx.Row) (*Certificate, error) {
 		&wtRaw, &spRaw, &resRaw, &c.SpecialNotes, &c.OtherNote,
 		&c.NotesViewed, &c.Recommendation, &c.Comment, &c.Status,
 		&c.AnalyticID, &c.AnalyticRating,
-		&c.Deleted, &c.CreatedAt, &c.UpdatedAt,
+		&c.Deleted, &c.CreatedAt, &c.UpdatedAt, &c.Number, &c.SourceData, &c.SourceRelations, &c.Equipments,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -1508,12 +1532,13 @@ func (r *PgRepository) SoftDeleteCertificate(ctx context.Context, id int64) erro
 
 func scanTask(row pgx.Row) (*Task, error) {
 	var t Task
+	var deadline *time.Time
 	var cName, aText *string
 	err := row.Scan(
 		&t.ID, &t.ContractorID, &cName, &t.AddressID, &aText,
 		&t.ApplicationID, &t.ContractID, &t.PrevTaskID, &t.TaskType, &t.TaskResult, &t.Title, &t.Description,
 		&t.Status, &t.Priority, &t.AssignedUserID, &t.SubdivisionID,
-		&t.PlanDatetimeTo, &t.ExecutionDatetime, &t.DecisionTimeSec, &t.IsUrgent, &t.Note,
+		&deadline, &t.ExecutionDatetime, &t.DecisionTimeSec, &t.IsUrgent, &t.Note,
 		&t.CreatedBy, &t.Deleted, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1527,6 +1552,10 @@ func scanTask(row pgx.Row) (*Task, error) {
 	}
 	if aText != nil {
 		t.AddressText = *aText
+	}
+	t.MissingDeadline = deadline == nil
+	if deadline != nil {
+		t.PlanDatetimeTo = *deadline
 	}
 	return &t, nil
 }
@@ -1893,7 +1922,7 @@ func (r *PgRepository) UpsertCallByExternalID(ctx context.Context, call *CallRec
 	if len(raw) == 0 {
 		raw = json.RawMessage(`{}`)
 	}
-	return r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		INSERT INTO crm_calls (
 			external_call_id, abonent_id, ext_tracking_id, direction, status,
 			caller_phone, callee_phone, sip_login, user_id, contractor_id,
@@ -1921,12 +1950,19 @@ func (r *PgRepository) UpsertCallByExternalID(ctx context.Context, call *CallRec
 			ended_at = COALESCE(EXCLUDED.ended_at, crm_calls.ended_at),
 			raw_payload = EXCLUDED.raw_payload,
 			updated_at = now()
+        WHERE EXCLUDED.external_call_id NOT LIKE 'mango:%'
+           OR (COALESCE((EXCLUDED.raw_payload->>'mango_seq')::bigint,0) > COALESCE((crm_calls.raw_payload->>'mango_seq')::bigint,0)
+               AND (crm_calls.ended_at IS NULL OR EXCLUDED.ended_at IS NOT NULL))
 		RETURNING id, user_id, contractor_id, created_at, updated_at
 	`, call.ExternalCallID, call.AbonentID, call.ExtTrackingID, call.Direction, call.Status,
 		call.CallerPhone, call.CalleePhone, call.SipLogin, call.UserID, call.ContractorID,
 		call.TrafficSourceID, call.CallerType, call.CallResult,
 		call.TypeOfAppeal, call.Comment, call.RecordURL, call.DurationSec, call.StartedAt, call.AnswerTime, call.EndedAt, raw,
 	).Scan(&call.ID, &call.UserID, &call.ContractorID, &call.CreatedAt, &call.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errStaleCallEvent
+	}
+	return err
 }
 
 func (r *PgRepository) UpdateCallCard(ctx context.Context, call *CallRecord) error {

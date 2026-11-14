@@ -231,7 +231,7 @@ func (s *Service) RenderCertificatePrintHTML(ctx context.Context, auth *platform
   </div>
 </body>
 </html>`,
-		cert.ID, cert.ID,
+		documentNumber(cert.ID, cert.Number), documentNumber(cert.ID, cert.Number),
 		cert.WorkDate.Format("02.01.2006"),
 		html.EscapeString(cert.ReceiptNumber),
 		html.EscapeString(cert.ContractorName),
@@ -246,6 +246,13 @@ func (s *Service) RenderCertificatePrintHTML(ctx context.Context, auth *platform
 	), nil
 }
 
+func documentNumber(id int64, number *int64) int64 {
+	if number != nil {
+		return *number
+	}
+	return id
+}
+
 // ExportApplications генерирует CSV или XLSX список заявок.
 func (s *Service) ExportApplications(ctx context.Context, auth *platform.AuthContext, f ApplicationFilter, format string) (string, string, []byte, error) {
 	f.Limit = 500
@@ -253,12 +260,12 @@ func (s *Service) ExportApplications(ctx context.Context, auth *platform.AuthCon
 	if err != nil {
 		return "", "", nil, err
 	}
-	headers := []string{"ID", "План с", "План по", "Контрагент", "Адрес", "Инженер", "Статус", "План сумма", "Факт сумма", "Комментарий"}
+	headers := []string{"ID", "Номер", "План с", "План по", "Контрагент", "Адрес", "Инженер", "Статус", "План сумма", "Факт сумма", "Комментарий"}
 	if strings.EqualFold(format, "csv") {
 		rows := make([][]string, 0, len(items))
 		for _, a := range items {
 			rows = append(rows, []string{
-				fmt.Sprint(a.ID),
+				fmt.Sprint(a.ID), fmt.Sprint(documentNumber(a.ID, a.Number)),
 				a.PlanDatetimeFrom.Format("02.01.2006 15:04"),
 				a.PlanDatetimeTo.Format("02.01.2006 15:04"),
 				a.ContractorName, a.AddressText, a.EngineerName, a.Status.Label(),
@@ -271,7 +278,7 @@ func (s *Service) ExportApplications(ctx context.Context, auth *platform.AuthCon
 	rows := make([][]any, 0, len(items))
 	for _, a := range items {
 		rows = append(rows, []any{
-			a.ID,
+			a.ID, documentNumber(a.ID, a.Number),
 			a.PlanDatetimeFrom.Format("02.01.2006 15:04"),
 			a.PlanDatetimeTo.Format("02.01.2006 15:04"),
 			a.ContractorName, a.AddressText, a.EngineerName, a.Status.Label(),
@@ -289,12 +296,12 @@ func (s *Service) ExportCertificates(ctx context.Context, auth *platform.AuthCon
 	if err != nil {
 		return "", "", nil, err
 	}
-	headers := []string{"ID", "Дата работ", "Контрагент", "Адрес", "Сумма", "Оплачено", "Запчасти", "Способ оплаты", "Квитанция", "Виды работ"}
+	headers := []string{"ID", "Номер", "Дата работ", "Контрагент", "Адрес", "Сумма", "Оплачено", "Запчасти", "Способ оплаты", "Квитанция", "Виды работ"}
 	if strings.EqualFold(format, "csv") {
 		rows := make([][]string, 0, len(items))
 		for _, c := range items {
 			rows = append(rows, []string{
-				fmt.Sprint(c.ID), c.WorkDate.Format("02.01.2006"), c.ContractorName, c.AddressText,
+				fmt.Sprint(c.ID), fmt.Sprint(documentNumber(c.ID, c.Number)), c.WorkDate.Format("02.01.2006"), c.ContractorName, c.AddressText,
 				fmt.Sprintf("%.2f", c.TotalAmount), fmt.Sprintf("%.2f", c.PaidAmount), fmt.Sprintf("%.2f", c.CostOfParts),
 				c.PaymentMethod, c.ReceiptNumber, strings.Join(c.WorkTypes, ", "),
 			})
@@ -305,7 +312,7 @@ func (s *Service) ExportCertificates(ctx context.Context, auth *platform.AuthCon
 	rows := make([][]any, 0, len(items))
 	for _, c := range items {
 		rows = append(rows, []any{
-			c.ID, c.WorkDate.Format("02.01.2006"), c.ContractorName, c.AddressText,
+			c.ID, documentNumber(c.ID, c.Number), c.WorkDate.Format("02.01.2006"), c.ContractorName, c.AddressText,
 			c.TotalAmount, c.PaidAmount, c.CostOfParts,
 			c.PaymentMethod, c.ReceiptNumber, strings.Join(c.WorkTypes, ", "),
 		})

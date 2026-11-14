@@ -228,6 +228,7 @@ type AnalyticQuestion struct {
 
 // AnalyticAnswer хранит выбранные ответы по одному вопросу в анкете аналитики.
 type AnalyticAnswer struct {
+	Text        string   `json:"text,omitempty"`
 	QuestionID  int64    `json:"question_id"`
 	Question    string   `json:"question,omitempty"`
 	OptionIDs   []int64  `json:"option_ids"`

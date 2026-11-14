@@ -474,6 +474,7 @@ const columns = computed<DataTableColumns<Contractor>>(() => {
       render: (row) => h('strong', row.name)
     }
   ]
+  cols.push({ title: 'Категория клиента', key: 'client_category_id', render: (row) => ({ 1: 'Проблемный', 2: 'Беспроблемный', 3: 'Внимательный', 4: 'VIP', 5: 'Юридическое лицо', 6: 'Сотрудник', 7: 'Спящий' } as Record<number, string>)[row.client_category_id ?? 0] || '—' })
   if (visibleColumns.value.includes('type')) {
     cols.push({
       title: 'Тип',

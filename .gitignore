@@ -40,3 +40,8 @@ Thumbs.db
 *.sql.gz
 *.sql.bz2
 backups/
+
+# Private migration reports and Python bytecode
+migration-report*.json
+__pycache__/
+*.pyc

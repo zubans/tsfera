@@ -28,6 +28,12 @@ type BootstrapAdminConfig struct {
 
 // Config описывает параметры подключения модуля Теплосфера к внешнему или standalone Go-сервису.
 type Config struct {
+	TelephonyProvider string
+	MangoBaseURL      string
+	MangoAPIKey       string
+	MangoAPISecret    string
+	SIPWebSocketURL   string
+
 	Pool                   *pgxpool.Pool
 	Authorizer             platform.Authorizer
 	EventBus               platform.EventBus
@@ -135,6 +141,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 
 	userDir := &usersDirectoryAdapter{svc: usersMod.Service, repo: repos.users}
 	crmMod := crm.NewModule(repos.crm, userDir, auth, bus, crm.Config{
+		TelephonyProvider: cfg.TelephonyProvider, MangoBaseURL: cfg.MangoBaseURL, MangoAPIKey: cfg.MangoAPIKey, MangoAPISecret: cfg.MangoAPISecret, SIPWebSocketURL: cfg.SIPWebSocketURL,
 		MTSWebhookSecret:       cfg.MTSWebhookSecret,
 		MTSBaseURL:             cfg.MTSBaseURL,
 		MTSAPIToken:            cfg.MTSAPIToken,

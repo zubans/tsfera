@@ -132,6 +132,7 @@ export interface CertificateExecutor {
 }
 
 export interface Contractor {
+  client_category_id?: number
   id: number
   name: string
   first_name?: string
@@ -212,6 +213,10 @@ export interface CertificateTelemetry {
 }
 
 export interface Certificate {
+  equipments?: { id: number; equipment_id: number; serial_number: string }[]
+  number?: number
+  source_data?: Record<string, unknown>
+  source_relations?: Record<string, unknown>
   id: number
   application_id?: number | null
   maintenance_contract_id?: number | null
@@ -243,6 +248,12 @@ export interface Certificate {
 }
 
 export interface Application {
+  phone_ids?: number[]
+  workflow_status?: number
+  incomplete?: boolean
+  number?: number
+  source_data?: Record<string, unknown>
+  source_relations?: Record<string, unknown>
   id: number
   contractor_id: number
   contractor_name?: string
@@ -303,6 +314,7 @@ export interface MaintenanceContract {
 }
 
 export interface CRMTask {
+  missing_deadline?: boolean
   id: number
   contractor_id?: number | null
   contractor_name?: string
