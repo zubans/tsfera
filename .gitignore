@@ -41,7 +41,22 @@ Thumbs.db
 *.sql.bz2
 backups/
 
+# Imported source file storage (private business files)
+/*.rar
+/*.zip
+/*.tar
+/*.tar.gz
+/*.tgz
+/banners/
+/payment-options/
+/subdivision-qrs/
+/report/
+/reports/
+
 # Private migration reports and Python bytecode
 migration-report*.json
 __pycache__/
 *.pyc
+
+# Docker caches for make targets
+/.cache/

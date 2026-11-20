@@ -165,7 +165,10 @@ def main() -> int:
             if args.apply and not args.files_destination:
                 raise ValueError('--files-destination required for copying files on apply')
             records = runner.json(stage, 'SELECT id,storage_path,size_bytes FROM users_files ORDER BY id')
-            report['files'] = transfer_files(records,Path(args.files_root),None)
+            report['files'] = transfer_files(records,Path(args.files_root),None,args.allow_missing_files)
+            missing = sum(1 for f in report['files'] if f.get('missing'))
+            if missing:
+                report['warnings'].append(f'File payloads missing in files root: {missing} of {len(records)}; metadata imported without content (--allow-missing-files).')
         if file_count and not args.files_root and not args.allow_missing_files:
             report['blockers'].append('File payloads are not in the dump. Supply external storage separately; --allow-missing-files explicitly permits metadata-only import.')
         if any(w.startswith('Unmapped permission:') for w in warnings) and not args.allow_unmapped_permissions:
@@ -181,7 +184,7 @@ def main() -> int:
             if report['blockers']:
                 raise ValueError('Import blocked; see report. Target database was not modified.')
             if args.files_root:
-                report['files'] = transfer_files(records,Path(args.files_root),Path(args.files_destination))
+                report['files'] = transfer_files(records,Path(args.files_root),Path(args.files_destination),args.allow_missing_files)
             print('Applying verified snapshot atomically to empty target...', flush=True)
             snapshot = work/'snapshot.sql'
             runner.run(['pg_dump','--no-owner','--no-privileges','--file='+str(snapshot)],stage)
