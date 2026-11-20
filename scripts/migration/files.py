@@ -23,19 +23,51 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def transfer_files(records: list[dict], source: Path, destination: Path | None) -> list[dict]:
-    """Missing files fail before creating destination. IDs/hashes only in report."""
+# В исходном хранилище часть картинок лежит с другим написанием расширения,
+# чем в ref_file.storage_key; содержимое при этом то же (сверяется размер).
+EXTENSION_ALIASES = {'.jpg': ('.jpeg',), '.jpeg': ('.jpg',)}
+
+
+def find_source(root: Path, key: str, size: int) -> tuple[Path | None, bool]:
+    """Returns the payload path and whether the extension alias was used."""
+    path = safe_file(root, key)
+    if path.is_file() and path.stat().st_size == size:
+        return path, False
+    for alias in EXTENSION_ALIASES.get(path.suffix.lower(), ()):
+        candidate = safe_file(root, str(Path(key).with_suffix(alias)))
+        if candidate.is_file() and candidate.stat().st_size == size:
+            return candidate, True
+    return None, False
+
+
+def transfer_files(records: list[dict], source: Path, destination: Path | None,
+                   allow_missing: bool = False) -> list[dict]:
+    """Missing files fail before creating destination unless explicitly allowed.
+
+    IDs/hashes only in report. Files are stored under storage_path from the database,
+    so an extension alias in the source does not change the path the application reads.
+    """
     verified = []
+    sources = []
     for row in records:
-        path = safe_file(source, row['storage_path'])
-        if not path.is_file() or path.stat().st_size != row['size_bytes']:
-            raise ValueError('Missing or size-mismatched file ID '+str(row['id']))
-        verified.append(dict(id=row['id'], size=row['size_bytes'], sha256=sha256(path)))
+        path, aliased = find_source(source, row['storage_path'], row['size_bytes'])
+        if path is None:
+            if not allow_missing:
+                raise ValueError('Missing or size-mismatched file ID '+str(row['id']))
+            verified.append(dict(id=row['id'], size=row['size_bytes'], missing=True))
+            sources.append(None)
+            continue
+        check = dict(id=row['id'], size=row['size_bytes'], sha256=sha256(path))
+        if aliased:
+            check['extension_normalized'] = True
+        verified.append(check)
+        sources.append(path)
     if destination is not None:
         destination.mkdir(mode=0o700, parents=False, exist_ok=False)
         copied = set()
-        for row, check in zip(records, verified):
-            src = safe_file(source, row['storage_path'])
+        for row, check, src in zip(records, verified, sources):
+            if src is None:
+                continue
             dst = safe_file(destination, row['storage_path'])
             dst.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             if dst not in copied:
