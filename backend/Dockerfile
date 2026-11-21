@@ -6,8 +6,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /tsfera-server ./cmd/server
 
 # Образ с консольными агентами для провайдеров claude_cli, codex_cli и antigravity_cli (как в KB).
-# Собирается целью ai-cli: TSFERA_BACKEND_TARGET=ai-cli (make build-ai-cli). Вход в аккаунты — в томе
-# /data/ai-cli, у каждого агента своя папка (HOME задаёт tsfera при запуске).
+# В docker compose используется по умолчанию. Вход в аккаунты — в томе /data/ai-cli,
+# у каждого агента своя папка (HOME задаёт tsfera при запуске).
 FROM debian:bookworm-slim AS ai-cli
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tzdata curl bash nodejs npm \
@@ -28,7 +28,8 @@ COPY --from=builder /tsfera-server /usr/local/bin/tsfera-server
 EXPOSE 8080
 CMD ["tsfera-server"]
 
-# Обычный образ без консольных агентов (цель по умолчанию).
+# Облегчённый образ без консольных агентов: TSFERA_BACKEND_TARGET=runtime.
+# Последняя стадия — цель по умолчанию для docker build без --target.
 FROM alpine:3.20 AS runtime
 RUN apk add --no-cache ca-certificates tzdata
 ENV TZ=Europe/Moscow
