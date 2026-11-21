@@ -273,4 +273,34 @@ type Repository interface {
 	ContractorsReport(ctx context.Context, f ReportFilter) ([]ContractorReportRow, error)
 	EngineersReport(ctx context.Context, f ReportFilter) ([]EngineerReportRow, error)
 	TrafficSourcesReport(ctx context.Context, f ReportFilter) (*TrafficSourceReport, error)
+
+	// Табель, загрузка и дневной план
+	ListTimesheetEntries(ctx context.Context, f TimesheetFilter) ([]TimesheetEntry, error)
+	GetTimesheetEntry(ctx context.Context, id int64) (*TimesheetEntry, error)
+	CreateTimesheetEntry(ctx context.Context, e *TimesheetEntry) error
+	UpdateTimesheetEntry(ctx context.Context, e *TimesheetEntry) error
+	DeleteTimesheetEntry(ctx context.Context, id int64) error
+	DeleteTimesheetShifts(ctx context.Context, userID int64, from, to time.Time) error
+	ListBusyIntervals(ctx context.Context, userIDs []int64, from, to time.Time) ([]BusyInterval, error)
+	ListDailyPlans(ctx context.Context) ([]DailyPlan, error)
+	SaveDailyPlan(ctx context.Context, p *DailyPlan) error
+	DeleteDailyPlan(ctx context.Context, id int64) error
+}
+
+// TimesheetFilter отбирает записи табеля, пересекающие интервал [From, To).
+type TimesheetFilter struct {
+	From    time.Time
+	To      time.Time
+	UserIDs []int64
+}
+
+// BusyInterval — время заявки, занятое у инженера (основного или соисполнителя).
+type BusyInterval struct {
+	UserID        int64
+	ApplicationID int64
+	From          time.Time
+	To            time.Time
+	IsComplete    bool
+	PlannedSum    float64
+	IsMain        bool
 }

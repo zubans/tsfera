@@ -1171,6 +1171,8 @@ func (r *PgRepository) ListApplications(ctx context.Context, f ApplicationFilter
 func (r *PgRepository) ListCalendarEvents(ctx context.Context, from, to time.Time, engineerID *int64, subdivisionID *int64) ([]CalendarEvent, error) {
 	where := []string{
 		"a.deleted = FALSE",
+		// Проваленные и отменённые заявки не занимают время в расписании.
+		"a.status NOT IN (3, 4)",
 		"a.plan_datetime_to >= $1",
 		"a.plan_datetime_from <= $2",
 	}

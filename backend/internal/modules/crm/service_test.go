@@ -44,6 +44,8 @@ type memRepo struct {
 	changeLogs        []ChangeLog
 	notifs            []Notification
 	settings          map[string]json.RawMessage
+	timesheet         []TimesheetEntry
+	dailyPlans        []DailyPlan
 }
 
 func newMemRepo() *memRepo {
@@ -688,7 +690,7 @@ func (m *memRepo) ListCalendarEvents(_ context.Context, from, to time.Time, engi
 	defer m.mu.Unlock()
 	var out []CalendarEvent
 	for _, a := range m.apps {
-		if a.Deleted || a.PlanDatetimeTo.Before(from) || a.PlanDatetimeFrom.After(to) {
+		if a.Deleted || a.Status == StatusFailed || a.Status == StatusCancelled || a.PlanDatetimeTo.Before(from) || a.PlanDatetimeFrom.After(to) {
 			continue
 		}
 		if engineerID != nil && !appHasEngineer(a, *engineerID) {
