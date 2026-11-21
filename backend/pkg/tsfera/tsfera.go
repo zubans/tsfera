@@ -51,7 +51,9 @@ type Config struct {
 	BootstrapAdmin         *BootstrapAdminConfig
 	EnableDocsAndAI        bool
 	// AICLIHome — каталог входа консольных агентов (claude, codex, agy): у каждого своя папка внутри.
-	AICLIHome    string
+	AICLIHome string
+	// AICLIProxy — прокси для консольных агентов (например, http://user:pass@host:3128).
+	AICLIProxy   string
 	ExtraModules []platform.Module
 	ExtraTools   []platform.ToolDefinition
 	ExtraSources []platform.IndexSource
@@ -172,6 +174,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 		aiMod := ai.NewModule(repos.ai, auth, usersMod.Service, crmMod.Service, docFetcher, bus, logger, sources...)
 		crmMod.Service.SetAudioTranscriber(aiMod.Gateway)
 		aiMod.Gateway.SetCLIHome(cfg.AICLIHome)
+		aiMod.Gateway.SetCLIProxy(cfg.AICLIProxy)
 
 		baseMods := []platform.Module{usersMod, crmMod, docsMod, aiMod}
 		tools := collectTools(baseMods, cfg.ExtraModules, cfg.ExtraTools)
