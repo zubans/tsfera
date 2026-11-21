@@ -18,8 +18,9 @@ services:
   backend:
     build:
       context: ./backend
-      # ai-cli — образ с консольными агентами (claude, codex, agy): make build-ai-cli
-      target: ${TSFERA_BACKEND_TARGET:-runtime}
+      # По умолчанию — образ с консольными агентами (claude, codex, agy) для ИИ по подпискам.
+      # TSFERA_BACKEND_TARGET=runtime — облегчённый образ без агентов.
+      target: ${TSFERA_BACKEND_TARGET:-ai-cli}
     environment:
       TSFERA_AI_CLI_HOME: /data/ai-cli
       DATABASE_URL: postgres://tsfera:tsfera@postgres:5432/tsfera?sslmode=disable

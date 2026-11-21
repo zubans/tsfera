@@ -86,22 +86,30 @@ down:
 	docker compose down
 
 # Консольные агенты для ИИ (провайдеры claude_cli, codex_cli, antigravity_cli), как в KB.
-# Образ с агентами: make build-ai-cli; чтобы он оставался после make up, задайте TSFERA_BACKEND_TARGET=ai-cli в .env.
+# Агенты входят в образ бэкенда по умолчанию; вход в аккаунты хранится в томе ai_cli (/data/ai-cli).
 .PHONY: build-ai-cli claude-login codex-login agy-login
 build-ai-cli:
-	TSFERA_BACKEND_TARGET=ai-cli docker compose up -d --build backend
+	docker compose up -d --build backend
+
+# Если бэкенд собран без агентов (старый образ или TSFERA_BACKEND_TARGET=runtime) — пересобираем его с агентами.
+define AI_CLI_LOGIN
+	@docker compose exec backend sh -c 'command -v $(1) >/dev/null' 2>/dev/null || { \
+		echo "В контейнере backend нет $(1) — пересобираю образ с консольными агентами (первый раз ~10 минут)"; \
+		TSFERA_BACKEND_TARGET=ai-cli docker compose up -d --build backend; }
+	docker compose exec -it $(2) backend sh -c "mkdir -p $(3) && $(4)"
+endef
 
 ## Вход в Claude Code: откройте ссылку из вывода; вместо входа можно указать токен `claude setup-token` в провайдере
 claude-login:
-	docker compose exec -it -e HOME=/data/ai-cli/claude_cli backend sh -c "mkdir -p /data/ai-cli/claude_cli && claude"
+	$(call AI_CLI_LOGIN,claude,-e HOME=/data/ai-cli/claude_cli,/data/ai-cli/claude_cli,claude)
 
 ## Вход в ChatGPT для Codex: откройте ссылку или введите код из вывода
 codex-login:
-	docker compose exec -it -e HOME=/data/ai-cli/codex_cli -e CODEX_HOME=/data/ai-cli/codex_cli backend sh -c "mkdir -p /data/ai-cli/codex_cli && codex login --device-auth"
+	$(call AI_CLI_LOGIN,codex,-e HOME=/data/ai-cli/codex_cli -e CODEX_HOME=/data/ai-cli/codex_cli,/data/ai-cli/codex_cli,codex login --device-auth)
 
 ## Вход в аккаунт Google для Antigravity: откройте ссылку, вставьте код, затем выйдите (/quit)
 agy-login:
-	docker compose exec -it -e HOME=/data/ai-cli/antigravity_cli backend sh -c "mkdir -p /data/ai-cli/antigravity_cli && agy"
+	$(call AI_CLI_LOGIN,agy,-e HOME=/data/ai-cli/antigravity_cli,/data/ai-cli/antigravity_cli,agy)
 
 # URLs are read from environment; dump paths are never interpolated as shell code.
 export MIGRATION_DUMP = $(DUMP)
