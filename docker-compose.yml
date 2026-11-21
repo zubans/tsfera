@@ -18,7 +18,10 @@ services:
   backend:
     build:
       context: ./backend
+      # ai-cli — образ с консольными агентами (claude, codex, agy): make build-ai-cli
+      target: ${TSFERA_BACKEND_TARGET:-runtime}
     environment:
+      TSFERA_AI_CLI_HOME: /data/ai-cli
       DATABASE_URL: postgres://tsfera:tsfera@postgres:5432/tsfera?sslmode=disable
       HTTP_ADDR: ":8080"
       TSFERA_STORAGE_DIR: /data/attachments
@@ -43,6 +46,11 @@ services:
     volumes:
       # Каталог заполняется импортом дампа (make init / make deploy-dump).
       - ./data/attachments:/data/attachments
+      # Вход консольных агентов в аккаунты (make claude-login / codex-login / agy-login).
+      - ai_cli:/data/ai-cli
+    extra_hosts:
+      # Шлюз консольных агентов (agy) на этой же машине: http://host.docker.internal:7070
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,3 +65,4 @@ services:
 
 volumes:
   pgdata:
+  ai_cli:

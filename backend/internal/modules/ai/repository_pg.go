@@ -22,7 +22,7 @@ func NewPgRepository(db platform.Querier) *PgRepository {
 
 func (r *PgRepository) ListProviders(ctx context.Context) ([]Provider, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, name, kind, base_url, api_key, active, is_default, created_at, updated_at
+		SELECT id, name, kind, base_url, api_key, active, is_default, timeout_seconds, created_at, updated_at
 		FROM ai_providers
 		ORDER BY is_default DESC, id ASC
 	`)
@@ -33,7 +33,7 @@ func (r *PgRepository) ListProviders(ctx context.Context) ([]Provider, error) {
 	var out []Provider
 	for rows.Next() {
 		var p Provider
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.BaseURL, &p.APIKey, &p.Active, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.BaseURL, &p.APIKey, &p.Active, &p.IsDefault, &p.TimeoutSeconds, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		p.HasAPIKey = p.APIKey != ""
@@ -46,10 +46,10 @@ func (r *PgRepository) ListProviders(ctx context.Context) ([]Provider, error) {
 func (r *PgRepository) GetProvider(ctx context.Context, id int64) (*Provider, error) {
 	var p Provider
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, kind, base_url, api_key, active, is_default, created_at, updated_at
+		SELECT id, name, kind, base_url, api_key, active, is_default, timeout_seconds, created_at, updated_at
 		FROM ai_providers
 		WHERE id = $1
-	`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.BaseURL, &p.APIKey, &p.Active, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt)
+	`, id).Scan(&p.ID, &p.Name, &p.Kind, &p.BaseURL, &p.APIKey, &p.Active, &p.IsDefault, &p.TimeoutSeconds, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -66,18 +66,18 @@ func (r *PgRepository) SaveProvider(ctx context.Context, p *Provider) error {
 	}
 	if p.ID == 0 {
 		return r.db.QueryRow(ctx, `
-			INSERT INTO ai_providers (name, kind, base_url, api_key, active, is_default)
-			VALUES ($1,$2,$3,$4,$5,$6)
+			INSERT INTO ai_providers (name, kind, base_url, api_key, active, is_default, timeout_seconds)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)
 			RETURNING id, created_at, updated_at
-		`, p.Name, string(p.Kind), p.BaseURL, p.APIKey, p.Active, p.IsDefault).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+		`, p.Name, string(p.Kind), p.BaseURL, p.APIKey, p.Active, p.IsDefault, p.TimeoutSeconds).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 	}
 	return platform.ExecExpectingOne(ctx, r.db, `
 		UPDATE ai_providers
 		SET name=$2, kind=$3, base_url=$4,
 		    api_key=CASE WHEN $5='' THEN api_key ELSE $5 END,
-		    active=$6, is_default=$7, updated_at=now()
+		    active=$6, is_default=$7, timeout_seconds=$8, updated_at=now()
 		WHERE id = $1
-	`, "Провайдер не найден", p.ID, p.Name, string(p.Kind), p.BaseURL, p.APIKey, p.Active, p.IsDefault)
+	`, "Провайдер не найден", p.ID, p.Name, string(p.Kind), p.BaseURL, p.APIKey, p.Active, p.IsDefault, p.TimeoutSeconds)
 }
 
 func (r *PgRepository) DeleteProvider(ctx context.Context, id int64) error {
@@ -329,3 +329,43 @@ func (r *PgRepository) ListUsageLogs(ctx context.Context, limit int) ([]UsageLog
 }
 
 var _ = fmt.Sprint
+
+func (r *PgRepository) GetTaskModelID(ctx context.Context, task AITask) (*int64, error) {
+	var id *int64
+	err := r.db.QueryRow(ctx, `SELECT model_id FROM ai_task_assignments WHERE task = $1`, string(task)).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return id, err
+}
+
+func (r *PgRepository) ListTaskAssignments(ctx context.Context) ([]TaskAssignment, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT t.task, t.model_id, COALESCE(m.name, '')
+		FROM ai_task_assignments t
+		LEFT JOIN ai_models m ON m.id = t.model_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TaskAssignment
+	for rows.Next() {
+		var a TaskAssignment
+		var task string
+		if err := rows.Scan(&task, &a.ModelID, &a.ModelName); err != nil {
+			return nil, err
+		}
+		a.Task = AITask(task)
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *PgRepository) SaveTaskAssignment(ctx context.Context, task AITask, modelID *int64) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO ai_task_assignments (task, model_id, updated_at) VALUES ($1, $2, now())
+		ON CONFLICT (task) DO UPDATE SET model_id = EXCLUDED.model_id, updated_at = now()
+	`, string(task), modelID)
+	return err
+}

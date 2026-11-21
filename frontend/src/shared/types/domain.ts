@@ -520,6 +520,16 @@ export interface AIProvider {
   has_api_key: boolean
   active: boolean
   is_default: boolean
+  timeout_seconds?: number
+}
+
+export interface AITaskAssignment {
+  task: 'chat' | 'compose' | 'embedding' | 'stt'
+  capability: string
+  model_id: number | null
+  model_name?: string
+  effective_model_id: number | null
+  effective_model_name: string
 }
 
 export interface AIModel {

@@ -15,7 +15,83 @@ const (
 	ProviderGemini       ProviderKind = "gemini"
 	ProviderOllama       ProviderKind = "ollama"
 	ProviderOpenAICompat ProviderKind = "openai_compat"
+	// Консольные агенты запускаются процессом в контейнере tsfera, вход — в каталоге провайдера (как в KB).
+	ProviderClaudeCLI      ProviderKind = "claude_cli"
+	ProviderCodexCLI       ProviderKind = "codex_cli"
+	ProviderAntigravityCLI ProviderKind = "antigravity_cli"
+	// Шлюз консольных агентов (CLI AI Gateway, agy): OpenAI-совместимый API без инструментов и параметров генерации.
+	ProviderCLIGateway ProviderKind = "cli_gateway"
 )
+
+// IsCLI сообщает, что провайдер — консольный агент, запускаемый процессом.
+func (k ProviderKind) IsCLI() bool {
+	return k == ProviderClaudeCLI || k == ProviderCodexCLI || k == ProviderAntigravityCLI
+}
+
+// UsesTextTools — провайдеры без нативного вызова инструментов: инструменты описываются в промпте,
+// вызовы приходят блоком <tool_calls> в тексте ответа.
+func (k ProviderKind) UsesTextTools() bool {
+	return k.IsCLI() || k == ProviderCLIGateway
+}
+
+// ValidProviderKind проверяет тип провайдера.
+func ValidProviderKind(k ProviderKind) bool {
+	switch k {
+	case ProviderOpenAI, ProviderAnthropic, ProviderGemini, ProviderOllama, ProviderOpenAICompat,
+		ProviderClaudeCLI, ProviderCodexCLI, ProviderAntigravityCLI, ProviderCLIGateway:
+		return true
+	}
+	return false
+}
+
+// AITask — задача, для которой назначается модель (как назначения задач в KB).
+type AITask string
+
+const (
+	TaskChat      AITask = "chat"      // чат с ИИ и «Обсудить с ИИ»
+	TaskCompose   AITask = "compose"   // генерация текстов
+	TaskEmbedding AITask = "embedding" // векторы для гибридного поиска
+	TaskSTT       AITask = "stt"       // расшифровка записей звонков
+)
+
+// AllTasks — задачи в порядке показа в настройках.
+var AllTasks = []AITask{TaskChat, TaskCompose, TaskEmbedding, TaskSTT}
+
+// Capability — какая возможность модели нужна задаче.
+func (t AITask) Capability() ModelCapability {
+	switch t {
+	case TaskEmbedding:
+		return CapEmbedding
+	case TaskSTT:
+		return CapSTT
+	}
+	return CapChat
+}
+
+// Valid проверяет код задачи.
+func (t AITask) Valid() bool {
+	for _, x := range AllTasks {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// TaskForOperation сопоставляет операцию вызова с задачей назначения модели.
+func TaskForOperation(op string) AITask {
+	if op == "compose" {
+		return TaskCompose
+	}
+	return TaskChat
+}
+
+// TaskAssignment — модель, назначенная задаче. Без назначения берётся модель по умолчанию для возможности.
+type TaskAssignment struct {
+	Task      AITask `json:"task"`
+	ModelID   *int64 `json:"model_id"`
+	ModelName string `json:"model_name,omitempty"`
+}
 
 type ModelCapability string
 
@@ -34,8 +110,10 @@ type Provider struct {
 	HasAPIKey bool         `json:"has_api_key"`
 	Active    bool         `json:"active"`
 	IsDefault bool         `json:"is_default"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	// TimeoutSeconds — сколько ждать ответа консольного агента или шлюза.
+	TimeoutSeconds int       `json:"timeout_seconds"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Model struct {

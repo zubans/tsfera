@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,9 @@ func (h *Handler) Mount(r chi.Router) {
 			ar.With(platform.RequirePermission("ai.admin")).Get("/providers", h.listProviders)
 			ar.With(platform.RequirePermission("ai.admin")).Post("/providers", h.saveProvider)
 			ar.With(platform.RequirePermission("ai.admin")).Delete("/providers/{id}", h.deleteProvider)
+			ar.With(platform.RequirePermission("ai.admin")).Post("/providers/{id}/import-models", h.importProviderModels)
+			ar.With(platform.RequirePermission("ai.admin")).Get("/tasks", h.listTaskAssignments)
+			ar.With(platform.RequirePermission("ai.admin")).Put("/tasks/{task}", h.saveTaskAssignment)
 
 			ar.With(platform.RequirePermission("ai.compose")).Post("/compose", h.composeSSE)
 			ar.With(platform.RequirePermission("ai.admin")).Get("/usage", h.listUsage)
@@ -87,6 +91,18 @@ func (h *Handler) saveProvider(w http.ResponseWriter, r *http.Request) {
 	if in.Name == "" || in.Kind == "" {
 		platform.WriteError(w, h.logger, platform.NewValidation("Укажите название и тип провайдера", nil))
 		return
+	}
+	if !ValidProviderKind(in.Kind) {
+		platform.WriteError(w, h.logger, platform.NewValidation("Неизвестный тип провайдера: "+string(in.Kind), nil))
+		return
+	}
+	in.BaseURL = strings.TrimSpace(in.BaseURL)
+	if in.Kind.IsCLI() && in.BaseURL != "" && !filepath.IsAbs(in.BaseURL) {
+		platform.WriteError(w, h.logger, platform.NewValidation("Для консольного агента в поле адреса указывается абсолютный путь каталога входа или ничего", nil))
+		return
+	}
+	if in.TimeoutSeconds <= 0 {
+		in.TimeoutSeconds = int(defaultCLITimeout.Seconds())
 	}
 	if err := h.repo.SaveProvider(r.Context(), &in); err != nil {
 		platform.WriteError(w, h.logger, err)
@@ -218,4 +234,122 @@ func (h *Handler) listUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	platform.WriteJSON(w, http.StatusOK, items)
+}
+
+// importProviderModels добавляет модели, доступные консольному агенту или шлюзу, которых ещё нет у провайдера.
+func (h *Handler) importProviderModels(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		platform.WriteError(w, h.logger, platform.NewValidation("Некорректный ID", nil))
+		return
+	}
+	p, err := h.repo.GetProvider(r.Context(), id)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	if p == nil {
+		platform.WriteError(w, h.logger, platform.NewNotFound("Провайдер не найден"))
+		return
+	}
+	names, err := h.gateway.ListProviderModels(r.Context(), p)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	existing, err := h.repo.ListModels(r.Context(), nil)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	have := map[string]bool{}
+	for _, m := range existing {
+		if m.ProviderID == id {
+			have[m.ModelID] = true
+		}
+	}
+	added := []string{}
+	for _, name := range names {
+		if have[name] {
+			continue
+		}
+		m := Model{ProviderID: id, Name: p.Name + " · " + name, ModelID: name, Capability: CapChat, ContextWindow: 200000, OpenToAll: true, Active: true}
+		if err := h.repo.SaveModel(r.Context(), &m); err != nil {
+			platform.WriteError(w, h.logger, err)
+			return
+		}
+		added = append(added, name)
+	}
+	platform.WriteJSON(w, http.StatusOK, map[string]any{"available": names, "added": added})
+}
+
+// listTaskAssignments возвращает все задачи с назначенной и фактически используемой моделью.
+func (h *Handler) listTaskAssignments(w http.ResponseWriter, r *http.Request) {
+	assigned, err := h.repo.ListTaskAssignments(r.Context())
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	byTask := map[AITask]TaskAssignment{}
+	for _, a := range assigned {
+		byTask[a.Task] = a
+	}
+	type row struct {
+		TaskAssignment
+		Capability     ModelCapability `json:"capability"`
+		EffectiveID    *int64          `json:"effective_model_id"`
+		EffectiveModel string          `json:"effective_model_name"`
+	}
+	out := make([]row, 0, len(AllTasks))
+	for _, t := range AllTasks {
+		a := byTask[t]
+		a.Task = t
+		item := row{TaskAssignment: a, Capability: t.Capability()}
+		if m, err := h.gateway.modelForTask(r.Context(), t); err == nil && m != nil {
+			id := m.ID
+			item.EffectiveID = &id
+			item.EffectiveModel = m.Name
+		}
+		out = append(out, item)
+	}
+	platform.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) saveTaskAssignment(w http.ResponseWriter, r *http.Request) {
+	task := AITask(chi.URLParam(r, "task"))
+	if !task.Valid() {
+		platform.WriteError(w, h.logger, platform.NewValidation("Неизвестная задача: "+string(task), nil))
+		return
+	}
+	var in struct {
+		ModelID *int64 `json:"model_id"`
+	}
+	if err := platform.DecodeJSON(r, &in); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	if in.ModelID != nil {
+		m, err := h.repo.GetModel(r.Context(), *in.ModelID)
+		if err != nil {
+			platform.WriteError(w, h.logger, err)
+			return
+		}
+		if m == nil {
+			platform.WriteError(w, h.logger, platform.NewNotFound("Модель не найдена"))
+			return
+		}
+		if m.Capability != task.Capability() {
+			platform.WriteError(w, h.logger, platform.NewValidation(fmt.Sprintf("Модель %s не подходит для задачи: нужна возможность %s", m.Name, task.Capability()), nil))
+			return
+		}
+		if m.ProviderKind.UsesTextTools() && task.Capability() != CapChat {
+			platform.WriteError(w, h.logger, platform.NewValidation("Консольные агенты и шлюз подходят только для текстовых задач", nil))
+			return
+		}
+	}
+	if err := h.repo.SaveTaskAssignment(r.Context(), task, in.ModelID); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	platform.WriteJSON(w, http.StatusOK, map[string]any{"task": task, "model_id": in.ModelID})
 }
