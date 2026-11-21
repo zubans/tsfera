@@ -50,9 +50,11 @@ type Config struct {
 	CloudPaymentsBaseURL   string
 	BootstrapAdmin         *BootstrapAdminConfig
 	EnableDocsAndAI        bool
-	ExtraModules           []platform.Module
-	ExtraTools             []platform.ToolDefinition
-	ExtraSources           []platform.IndexSource
+	// AICLIHome — каталог входа консольных агентов (claude, codex, agy): у каждого своя папка внутри.
+	AICLIHome    string
+	ExtraModules []platform.Module
+	ExtraTools   []platform.ToolDefinition
+	ExtraSources []platform.IndexSource
 }
 
 // Platform инкапсулирует все модули Теплосферы (users, crm, docs, ai, chat) и контракты расширения.
@@ -169,6 +171,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 		docFetcher := &docsFetcherAdapter{svc: docsMod.Service}
 		aiMod := ai.NewModule(repos.ai, auth, usersMod.Service, crmMod.Service, docFetcher, bus, logger, sources...)
 		crmMod.Service.SetAudioTranscriber(aiMod.Gateway)
+		aiMod.Gateway.SetCLIHome(cfg.AICLIHome)
 
 		baseMods := []platform.Module{usersMod, crmMod, docsMod, aiMod}
 		tools := collectTools(baseMods, cfg.ExtraModules, cfg.ExtraTools)

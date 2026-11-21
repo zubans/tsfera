@@ -20,6 +20,10 @@ type Repository interface {
 	SearchFTS(ctx context.Context, query string, limit int) ([]SearchResult, error)
 	SearchVectors(ctx context.Context, queryVec []float64, limit int) ([]SearchResult, error)
 
+	GetTaskModelID(ctx context.Context, task AITask) (*int64, error)
+	ListTaskAssignments(ctx context.Context) ([]TaskAssignment, error)
+	SaveTaskAssignment(ctx context.Context, task AITask, modelID *int64) error
+
 	LogUsage(ctx context.Context, entry *UsageLog) error
 	ListUsageLogs(ctx context.Context, limit int) ([]UsageLog, error)
 }

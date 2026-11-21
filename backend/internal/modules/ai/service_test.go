@@ -22,6 +22,7 @@ type memAIRepo struct {
 	models    map[int64]*Model
 	chunks    []SearchChunk
 	usage     []UsageLog
+	tasks     map[AITask]*int64
 }
 
 func newMemAIRepo() *memAIRepo {

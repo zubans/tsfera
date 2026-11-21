@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zubans/tsfera/backend/pkg/platform"
@@ -25,7 +26,21 @@ type Gateway struct {
 	repo       Repository
 	access     ModelAccessPolicy
 	httpClient *http.Client
+	// longClient — для шлюза консольных агентов: длительность ограничивает контекст с таймаутом провайдера.
+	longClient *http.Client
 	logger     *slog.Logger
+	// cliHome — каталог, в котором у каждого консольного агента своя папка входа.
+	cliHome string
+	proc    cliProcess
+	semMu   sync.Mutex
+	sems    map[int64]chan struct{}
+}
+
+// SetCLIHome задаёт каталог входа консольных агентов (по умолчанию ./data/ai-cli).
+func (g *Gateway) SetCLIHome(dir string) {
+	if strings.TrimSpace(dir) != "" {
+		g.cliHome = dir
+	}
 }
 
 func NewGateway(repo Repository, access ModelAccessPolicy, logger *slog.Logger) *Gateway {
@@ -36,17 +51,37 @@ func NewGateway(repo Repository, access ModelAccessPolicy, logger *slog.Logger) 
 		repo:       repo,
 		access:     access,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
+		longClient: &http.Client{},
 		logger:     logger,
+		cliHome:    "./data/ai-cli",
+		proc:       execProcess{},
+		sems:       map[int64]chan struct{}{},
 	}
 }
 
-func (g *Gateway) resolveChatModel(ctx context.Context, auth *platform.AuthContext, requestedModelID int64) (*Model, *Provider, error) {
+// modelForTask — модель, назначенная задаче; без назначения — модель по умолчанию для возможности.
+func (g *Gateway) modelForTask(ctx context.Context, task AITask) (*Model, error) {
+	if id, err := g.repo.GetTaskModelID(ctx, task); err != nil {
+		return nil, err
+	} else if id != nil {
+		m, err := g.repo.GetModel(ctx, *id)
+		if err != nil {
+			return nil, err
+		}
+		if m != nil && m.Active && m.Capability == task.Capability() {
+			return m, nil
+		}
+	}
+	return g.repo.GetDefaultModel(ctx, task.Capability())
+}
+
+func (g *Gateway) resolveChatModel(ctx context.Context, auth *platform.AuthContext, requestedModelID int64, task AITask) (*Model, *Provider, error) {
 	var m *Model
 	var err error
 	if requestedModelID > 0 {
 		m, err = g.repo.GetModel(ctx, requestedModelID)
 	} else {
-		m, err = g.repo.GetDefaultModel(ctx, CapChat)
+		m, err = g.modelForTask(ctx, task)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -76,7 +111,7 @@ func (g *Gateway) resolveChatModel(ctx context.Context, auth *platform.AuthConte
 // CompleteChat выполняет синхронный вызов LLM (включая вызов инструментов) по диалекту выбранного провайдера.
 func (g *Gateway) CompleteChat(ctx context.Context, auth *platform.AuthContext, req CompletionRequest) (*CompletionResponse, error) {
 	started := time.Now()
-	m, p, err := g.resolveChatModel(ctx, auth, req.ModelID)
+	m, p, err := g.resolveChatModel(ctx, auth, req.ModelID, TaskForOperation(req.Operation))
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +129,10 @@ func (g *Gateway) CompleteChat(ctx context.Context, auth *platform.AuthContext, 
 		resp, err = g.callGeminiChat(ctx, p, m, req)
 	case ProviderOllama:
 		resp, err = g.callOllamaChat(ctx, p, m, req)
+	case ProviderClaudeCLI, ProviderCodexCLI, ProviderAntigravityCLI:
+		resp, err = g.callCLIChat(ctx, p, m, req, nil)
+	case ProviderCLIGateway:
+		resp, err = g.callGatewayChat(ctx, p, m, req, nil)
 	default:
 		err = platform.NewValidation("Неподдерживаемый тип провайдера: "+string(p.Kind), nil)
 	}
@@ -110,7 +149,7 @@ func (g *Gateway) CompleteChat(ctx context.Context, auth *platform.AuthContext, 
 // StreamChat выполняет потоковую генерацию текста (используется для /ai/compose и финального ответа чата).
 func (g *Gateway) StreamChat(ctx context.Context, auth *platform.AuthContext, req CompletionRequest, onDelta func(string) error) (*CompletionResponse, error) {
 	started := time.Now()
-	m, p, err := g.resolveChatModel(ctx, auth, req.ModelID)
+	m, p, err := g.resolveChatModel(ctx, auth, req.ModelID, TaskForOperation(req.Operation))
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +158,14 @@ func (g *Gateway) StreamChat(ctx context.Context, auth *platform.AuthContext, re
 	}
 
 	var resp *CompletionResponse
-	if (p.Kind == ProviderOpenAI || p.Kind == ProviderOpenAICompat) && len(req.Tools) == 0 {
+	switch {
+	case (p.Kind == ProviderOpenAI || p.Kind == ProviderOpenAICompat) && len(req.Tools) == 0:
 		resp, err = g.streamOpenAIChat(ctx, p, m, req, onDelta)
-	} else {
+	case p.Kind.IsCLI() && len(req.Tools) == 0:
+		resp, err = g.callCLIChat(ctx, p, m, req, onDelta)
+	case p.Kind == ProviderCLIGateway && len(req.Tools) == 0:
+		resp, err = g.callGatewayChat(ctx, p, m, req, onDelta)
+	default:
 		// Для провайдеров без SSE или при активных инструментах — аккуратный fallback с отдачей результата в callback.
 		resp, err = g.CompleteChat(ctx, auth, req)
 		if err == nil && resp.Content != "" && onDelta != nil {
@@ -141,7 +185,7 @@ func (g *Gateway) StreamChat(ctx context.Context, auth *platform.AuthContext, re
 
 // Embed генерирует вектор эмбеддинга, если в системе настроена активная embedding-модель.
 func (g *Gateway) Embed(ctx context.Context, text string) ([]float64, error) {
-	m, err := g.repo.GetDefaultModel(ctx, CapEmbedding)
+	m, err := g.modelForTask(ctx, TaskEmbedding)
 	if err != nil || m == nil || !m.Active {
 		return nil, nil
 	}
@@ -168,7 +212,7 @@ func (g *Gateway) TranscribeAudio(ctx context.Context, auth *platform.AuthContex
 	if modelID > 0 {
 		m, err = g.repo.GetModel(ctx, modelID)
 	} else {
-		m, err = g.repo.GetDefaultModel(ctx, CapSTT)
+		m, err = g.modelForTask(ctx, TaskSTT)
 	}
 	if err != nil {
 		return "", err

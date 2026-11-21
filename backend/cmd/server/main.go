@@ -47,6 +47,7 @@ func main() {
 		CloudPaymentsAPISecret: os.Getenv("CLOUDPAYMENTS_API_SECRET"),
 		CloudPaymentsBaseURL:   os.Getenv("CLOUDPAYMENTS_BASE_URL"),
 		EnableDocsAndAI:        envOr("TSFERA_ENABLE_DOCS_AI", "true") != "false",
+		AICLIHome:              envOr("TSFERA_AI_CLI_HOME", "./data/ai-cli"),
 	}
 	if adminPass := envOr("TSFERA_ADMIN_PASSWORD", "admin12345"); adminPass != "" {
 		cfg.BootstrapAdmin = &tsfera.BootstrapAdminConfig{

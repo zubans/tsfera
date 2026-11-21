@@ -16,6 +16,7 @@ import {
   NFormItem,
   NTag,
   NAlert,
+  NInputNumber,
   type DataTableColumns
 } from 'naive-ui'
 import { requestJSON, requestSSE, ApiError } from '@/shared/api/http'
@@ -28,7 +29,8 @@ import type {
   AIModel,
   AIUsageLog,
   ModelAccessPolicy,
-  UserBrief
+  UserBrief,
+  AITaskAssignment
 } from '@/shared/types/domain'
 
 const auth = useAuthStore()
@@ -62,13 +64,61 @@ const usageLogs = ref<AIUsageLog[]>([])
 const accessPolicies = ref<ModelAccessPolicy[]>([])
 const workers = ref<UserBrief[]>([])
 
+const taskAssignments = ref<AITaskAssignment[]>([])
+
+// Консольные агенты запускаются в контейнере tsfera (вход — make claude-login / codex-login / agy-login),
+// шлюз — отдельный сервис CLI AI Gateway (agy) с OpenAI-совместимым API.
+const CLI_KINDS = ['claude_cli', 'codex_cli', 'antigravity_cli']
+const TEXT_TOOL_KINDS = [...CLI_KINDS, 'cli_gateway']
+const providerKindOptions = [
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'OpenAI Compat', value: 'openai_compat' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Gemini', value: 'gemini' },
+  { label: 'Ollama (Local)', value: 'ollama' },
+  { label: 'Claude Code (консольный агент)', value: 'claude_cli' },
+  { label: 'Codex (консольный агент)', value: 'codex_cli' },
+  { label: 'Antigravity (консольный агент)', value: 'antigravity_cli' },
+  { label: 'Шлюз консольных агентов (agy)', value: 'cli_gateway' }
+]
+const TASK_LABELS: Record<string, string> = {
+  chat: 'Чат с ИИ и «Обсудить с ИИ»',
+  compose: 'Генерация текстов (Compose)',
+  embedding: 'Эмбеддинги для поиска',
+  stt: 'Расшифровка звонков'
+}
+const KIND_HINTS: Record<string, { url: string; key: string; help: string }> = {
+  claude_cli: {
+    url: 'Каталог входа (необязательно)',
+    key: 'Токен `claude setup-token` или ключ API',
+    help: 'Claude Code запускается в контейнере tsfera (образ make build-ai-cli). Вход: токен из `claude setup-token` в поле ключа или make claude-login. Модели: opus, sonnet, haiku — кнопка «Загрузить модели».'
+  },
+  codex_cli: {
+    url: 'Каталог входа (необязательно)',
+    key: 'Ключ API (необязательно)',
+    help: 'Codex запускается в контейнере tsfera (образ make build-ai-cli). Вход в ChatGPT: make codex-login, или ключ API в поле ключа. Список моделей — кнопкой «Загрузить модели».'
+  },
+  antigravity_cli: {
+    url: 'Каталог входа (необязательно)',
+    key: 'Не нужен',
+    help: 'Antigravity запускается в контейнере tsfera (образ make build-ai-cli). Вход в аккаунт Google: make agy-login. Список моделей — кнопкой «Загрузить модели».'
+  },
+  cli_gateway: {
+    url: 'http://host.docker.internal:7070',
+    key: 'Ключ шлюза (GATEWAY_API_KEY)',
+    help: 'Шлюз CLI AI Gateway держит контейнеры claude, codex, gemini и agy. Укажите адрес и ключ шлюза, затем «Загрузить модели».'
+  }
+}
+const providerHint = computed(() => KIND_HINTS[providerForm.value.kind])
+
 const providerForm = ref({
   name: '',
   kind: 'openai_compat',
   base_url: 'https://api.openai.com',
   api_key: '',
   active: true,
-  is_default: false
+  is_default: false,
+  timeout_seconds: 300
 })
 
 const modelForm = ref({
@@ -197,6 +247,55 @@ async function loadAdminAI() {
   if (!modelForm.value.provider_id && providers.value.length > 0) {
     modelForm.value.provider_id = providers.value[0].id
   }
+  if (auth.hasPerm('ai.admin')) {
+    try {
+      taskAssignments.value = (await requestJSON<AITaskAssignment[]>('/api/v1/ai/tasks')) ?? []
+    } catch {
+      taskAssignments.value = []
+    }
+  }
+}
+
+const importingProviderId = ref<number | null>(null)
+
+async function importModels(p: AIProvider) {
+  importingProviderId.value = p.id
+  errorMsg.value = ''
+  statusMsg.value = ''
+  try {
+    const res = await requestJSON<{ available: string[]; added: string[] }>(`/api/v1/ai/providers/${p.id}/import-models`, {
+      method: 'POST'
+    })
+    statusMsg.value = res.added.length
+      ? `${p.name}: добавлены модели ${res.added.join(', ')}`
+      : `${p.name}: новых моделей нет (доступны: ${res.available.join(', ')})`
+    await loadAdminAI()
+  } catch (err) {
+    errorMsg.value = err instanceof ApiError ? err.message : 'Не удалось загрузить модели'
+  } finally {
+    importingProviderId.value = null
+  }
+}
+
+function taskModelOptions(t: AITaskAssignment) {
+  return models.value
+    .filter((m) => m.active && m.capability === t.capability)
+    .filter((m) => t.capability === 'chat' || !TEXT_TOOL_KINDS.includes(providerKindOf(m.provider_id)))
+    .map((m) => ({ label: `${m.name} (${m.provider_name ?? ''})`, value: m.id }))
+}
+
+function providerKindOf(id: number): string {
+  return providers.value.find((p) => p.id === id)?.kind ?? ''
+}
+
+async function saveTask(t: AITaskAssignment, modelId: number | null) {
+  errorMsg.value = ''
+  try {
+    await requestJSON(`/api/v1/ai/tasks/${t.task}`, { method: 'PUT', body: JSON.stringify({ model_id: modelId }) })
+    await loadAdminAI()
+  } catch (err) {
+    errorMsg.value = err instanceof ApiError ? err.message : 'Не удалось назначить модель'
+  }
 }
 
 async function saveProvider() {
@@ -210,7 +309,8 @@ async function saveProvider() {
     base_url: 'https://api.openai.com',
     api_key: '',
     active: true,
-    is_default: false
+    is_default: false,
+    timeout_seconds: 300
   }
   await loadAdminAI()
 }
@@ -405,22 +505,43 @@ onMounted(() => {
             <NInput v-model:value="providerForm.name" placeholder="Название" style="width: 150px" />
             <NSelect
               v-model:value="providerForm.kind"
-              style="width: 160px"
-              :options="[
-                { label: 'OpenAI', value: 'openai' },
-                { label: 'OpenAI Compat', value: 'openai_compat' },
-                { label: 'Anthropic', value: 'anthropic' },
-                { label: 'Gemini', value: 'gemini' },
-                { label: 'Ollama (Local)', value: 'ollama' }
-              ]"
+              style="width: 260px"
+              :options="providerKindOptions"
+              @update:value="(k: string) => (providerForm.base_url = CLI_KINDS.includes(k) ? '' : k === 'cli_gateway' ? 'http://host.docker.internal:7070' : providerForm.base_url)"
             />
-            <NInput v-model:value="providerForm.base_url" placeholder="Base URL" style="width: 240px" />
-            <NInput v-model:value="providerForm.api_key" type="password" placeholder="API Key" style="width: 180px" />
+            <NInput v-model:value="providerForm.base_url" :placeholder="providerHint?.url ?? 'Base URL'" style="width: 240px" />
+            <NInput
+              v-model:value="providerForm.api_key"
+              type="password"
+              :placeholder="providerHint?.key ?? 'API Key'"
+              style="width: 220px"
+            />
+            <NInputNumber
+              v-if="TEXT_TOOL_KINDS.includes(providerForm.kind)"
+              v-model:value="providerForm.timeout_seconds"
+              :min="30"
+              :step="30"
+              style="width: 130px"
+            >
+              <template #suffix>с</template>
+            </NInputNumber>
             <NButton type="primary" @click="saveProvider">Сохранить провайдера</NButton>
           </NSpace>
+          <NAlert v-if="providerHint" type="info" style="margin-top: 8px">{{ providerHint.help }}</NAlert>
           <NSpace style="margin-top: 8px">
             <NTag v-for="p in providers" :key="p.id">
-              {{ p.name }} ({{ p.kind }}) {{ p.has_api_key ? '🔑' : '' }}
+              {{ p.name }} ({{ providerKindOptions.find((o) => o.value === p.kind)?.label ?? p.kind }}) {{ p.has_api_key ? '🔑' : '' }}
+              <NButton
+                v-if="TEXT_TOOL_KINDS.includes(p.kind)"
+                text
+                size="tiny"
+                type="primary"
+                style="margin-left: 6px"
+                :loading="importingProviderId === p.id"
+                @click="importModels(p)"
+              >
+                Загрузить модели
+              </NButton>
             </NTag>
           </NSpace>
         </NCard>
@@ -446,6 +567,24 @@ onMounted(() => {
             />
             <NButton type="primary" @click="saveModel">Добавить модель</NButton>
           </NSpace>
+        </NCard>
+
+        <NCard title="Модели по задачам" size="small" style="margin-bottom: 12px">
+          <div v-for="t in taskAssignments" :key="t.task" class="task-row">
+            <span class="task-name">{{ TASK_LABELS[t.task] ?? t.task }}</span>
+            <NSelect
+              :value="t.model_id"
+              clearable
+              style="width: 360px"
+              :placeholder="t.effective_model_name ? `По умолчанию: ${t.effective_model_name}` : 'Модель не настроена'"
+              :options="taskModelOptions(t)"
+              @update:value="(v: number | null) => saveTask(t, v)"
+            />
+          </div>
+          <div class="task-hint">
+            Без назначения берётся модель, отмеченная «по умолчанию» для своей возможности. Консольные агенты и шлюз
+            подходят только для текстовых задач.
+          </div>
         </NCard>
 
         <NDataTable :columns="modelColumns" :data="models" :row-key="(r) => r.id" />
@@ -492,6 +631,20 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+.task-name {
+  width: 240px;
+}
+.task-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
 .ai-page {
   display: flex;
   flex-direction: column;
