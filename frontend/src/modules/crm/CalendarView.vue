@@ -21,8 +21,10 @@ import {
   NDrawer,
   NDrawerContent,
   NDivider,
-  NSpin
+  NSpin,
+  NDatePicker
 } from 'naive-ui'
+import EngineerScheduleBoard from './EngineerScheduleBoard.vue'
 import { requestJSON, ApiError } from '@/shared/api/http'
 import {
   formatPhoneRU,
@@ -43,7 +45,9 @@ import type {
   ContractorAddress,
   RefItem,
   CRMEnums,
-  TrafficSource
+  TrafficSource,
+  CalendarLoad,
+  SlotCheckResult
 } from '@/shared/types/domain'
 
 const auth = useAuthStore()
@@ -51,7 +55,16 @@ const realtime = useRealtimeStore()
 const route = useRoute()
 const router = useRouter()
 
-const viewMode = ref<'week' | 'day' | 'list'>('week')
+type ViewMode = 'board' | 'week' | 'day' | 'list'
+const viewMode = ref<ViewMode>('board')
+// Расписание инженеров на день: дата, загрузка с сервера и фильтр исполнителей.
+const boardDate = ref(startOfDay(new Date()))
+const boardLoad = ref<CalendarLoad | null>(null)
+const boardEngineerIds = ref<number[]>([])
+// Предупреждения по времени заявки: сохранение после подтверждения, пересечение — запрет.
+const slotWarnings = ref<string[]>([])
+const slotConfirmed = ref(false)
+const pendingMove = ref<{ ev: CalendarEvent; engineerId: number; start: Date; end: Date; warnings: string[] } | null>(null)
 const anchorDate = ref(startOfWeek(new Date()))
 const selectedEngineerId = ref<number | null>(null)
 const selectedSubdivisionId = ref<number | null>(null)
@@ -111,6 +124,12 @@ const appForm = ref({
   comment: '',
   special_notes: ''
 })
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
 
 function startOfWeek(d: Date): Date {
   const copy = new Date(d)
@@ -216,7 +235,7 @@ async function loadMeta() {
     requestJSON<{ items: Contractor[]; total: number }>('/api/v1/crm/contractors?limit=100'),
     requestJSON<RefItem[]>('/api/v1/crm/refs/special_note'),
     requestJSON<{
-      view_mode?: 'week' | 'day' | 'list'
+      view_mode?: ViewMode
       hidden_engineer_ids?: number[]
       engineer_order?: number[]
       only_duty?: boolean
@@ -230,7 +249,7 @@ async function loadMeta() {
   if (noteRes.status === 'fulfilled') specialNotePresets.value = noteRes.value ?? []
   if (tsRes.status === 'fulfilled' && Array.isArray(tsRes.value)) trafficSources.value = tsRes.value
   if (cfgRes.status === 'fulfilled' && cfgRes.value) {
-    if (cfgRes.value.view_mode === 'day' || cfgRes.value.view_mode === 'week' || cfgRes.value.view_mode === 'list') {
+    if (cfgRes.value.view_mode && ['board', 'week', 'day', 'list'].includes(cfgRes.value.view_mode)) {
       viewMode.value = cfgRes.value.view_mode
     }
     if (Array.isArray(cfgRes.value.hidden_engineer_ids)) {
@@ -283,8 +302,10 @@ async function loadCalendar() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const from = toISODate(anchorDate.value)
-    const to = toISODate(addDays(anchorDate.value, viewMode.value === 'day' ? 1 : 7))
+    const isBoard = viewMode.value === 'board'
+    const start = isBoard ? boardDate.value : anchorDate.value
+    const from = toISODate(start)
+    const to = toISODate(addDays(start, viewMode.value === 'day' || isBoard ? 1 : 7))
     const params = new URLSearchParams({ from, to })
     if (selectedEngineerId.value && selectedEngineerId.value > 0) {
       params.set('engineer_id', String(selectedEngineerId.value))
@@ -294,8 +315,14 @@ async function loadCalendar() {
     if (selectedSubdivisionId.value && selectedSubdivisionId.value > 0) {
       params.set('subdivision_id', String(selectedSubdivisionId.value))
     }
-    const list = await requestJSON<CalendarEvent[]>(`/api/v1/crm/applications/calendar?${params}`)
+    const loadParams = new URLSearchParams({ date: from })
+    if (params.has('subdivision_id')) loadParams.set('subdivision_id', params.get('subdivision_id') ?? '')
+    const [list, load] = await Promise.all([
+      requestJSON<CalendarEvent[]>(`/api/v1/crm/applications/calendar?${params}`),
+      isBoard ? requestJSON<CalendarLoad>(`/api/v1/crm/calendar/load?${loadParams}`) : Promise.resolve(null)
+    ])
     events.value = list ?? []
+    boardLoad.value = load && Array.isArray(load.engineers) ? load : null
     if (selectedEvent.value) {
       const updated = events.value.find((e) => e.id === selectedEvent.value?.id)
       if (updated) selectedEvent.value = updated
@@ -319,11 +346,19 @@ async function loadContractorAddresses(contractorId: number | null) {
 }
 
 function shiftRange(dir: number) {
+  if (viewMode.value === 'board') {
+    boardDate.value = addDays(boardDate.value, dir)
+    return
+  }
   const step = viewMode.value === 'day' ? 1 : 7
   anchorDate.value = addDays(anchorDate.value, dir * step)
 }
 
 function resetToday() {
+  if (viewMode.value === 'board') {
+    boardDate.value = startOfDay(new Date())
+    return
+  }
   anchorDate.value = viewMode.value === 'day' ? new Date() : startOfWeek(new Date())
   if (viewMode.value === 'day') {
     anchorDate.value.setHours(0, 0, 0, 0)
@@ -337,20 +372,103 @@ function openDetails(ev: CalendarEvent) {
   drawerOpen.value = true
 }
 
-async function openCreateModal(prefill?: { day?: Date; contractorId?: number; addressId?: number }) {
+const boardTitle = computed(() =>
+  boardDate.value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) +
+  ' · ' +
+  boardDate.value.toLocaleDateString('ru-RU', { weekday: 'long' })
+)
+
+// Видимость колонок решает сетка: карточка нужна и у соисполнителя, даже если основной инженер скрыт.
+const boardEvents = computed(() => events.value.filter((ev) => !onlyDuty.value || ev.is_duty))
+
+const boardVisibleIds = computed(() => {
+  if (boardEngineerIds.value.length > 0) return boardEngineerIds.value
+  if (selectedEngineerId.value) return [selectedEngineerId.value]
+  const all = boardLoad.value?.engineers.map((e) => e.user_id) ?? []
+  return all.filter((id) => !hiddenEngineerIds.value.includes(id))
+})
+
+function isTomorrow(d: Date): boolean {
+  return toISODate(d) === toISODate(addDays(startOfDay(new Date()), 1))
+}
+
+function warningsText(res: SlotCheckResult): string[] {
+  return res.warnings.map((w) => w.message)
+}
+
+async function checkSlot(body: Record<string, unknown>): Promise<SlotCheckResult> {
+  return requestJSON<SlotCheckResult>('/api/v1/crm/applications/check-slot', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
+}
+
+async function onBoardMove(payload: { ev: CalendarEvent; engineerId: number; start: Date; end: Date }) {
+  try {
+    const res = await checkSlot({
+      application_id: payload.ev.id,
+      engineer_id: payload.engineerId,
+      executor_ids: (payload.ev.executor_ids ?? []).filter((id) => id !== payload.engineerId),
+      plan_datetime_from: payload.start.toISOString(),
+      plan_datetime_to: payload.end.toISOString(),
+      is_duty: payload.ev.is_duty
+    })
+    if (res.conflict) {
+      errorMsg.value = res.conflict
+      return
+    }
+    if (res.warnings.length > 0) {
+      pendingMove.value = { ...payload, warnings: warningsText(res) }
+      return
+    }
+    await applyMove(payload)
+  } catch (err) {
+    errorMsg.value = err instanceof ApiError ? err.message : 'Не удалось перенести заявку'
+  }
+}
+
+async function applyMove(payload: { ev: CalendarEvent; engineerId: number; start: Date; end: Date }) {
+  pendingMove.value = null
+  try {
+    await requestJSON(`/api/v1/crm/applications/${payload.ev.id}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        engineer_id: payload.engineerId,
+        plan_datetime_from: payload.start.toISOString(),
+        plan_datetime_to: payload.end.toISOString()
+      })
+    })
+    await loadCalendar()
+  } catch (err) {
+    errorMsg.value = err instanceof ApiError ? err.message : 'Не удалось перенести заявку'
+  }
+}
+
+async function openCreateModal(prefill?: {
+  day?: Date
+  contractorId?: number
+  addressId?: number
+  start?: Date
+  end?: Date
+  engineerId?: number
+}) {
   editId.value = null
   modalError.value = ''
-  const start = prefill?.day ? new Date(prefill.day) : new Date()
-  if (prefill?.day) {
+  slotWarnings.value = []
+  slotConfirmed.value = false
+  const start = prefill?.start ? new Date(prefill.start) : prefill?.day ? new Date(prefill.day) : new Date()
+  if (prefill?.start) {
+    // время уже выбрано в расписании
+  } else if (prefill?.day) {
     start.setHours(9, 0, 0, 0)
   } else {
     start.setMinutes(0, 0, 0)
   }
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+  const end = prefill?.end ? new Date(prefill.end) : new Date(start.getTime() + 2 * 60 * 60 * 1000)
   appForm.value = {
     contractor_id: prefill?.contractorId ?? contractors.value[0]?.id ?? null,
     address_id: prefill?.addressId ?? null,
-    engineer_id: selectedEngineerId.value || orderedEngineers.value[0]?.id || null,
+    engineer_id: prefill?.engineerId ?? (selectedEngineerId.value || orderedEngineers.value[0]?.id || null),
     executor_ids: [],
     traffic_source_id: null,
     planned_sum: 0,
@@ -375,6 +493,8 @@ async function openCreateModal(prefill?: { day?: Date; contractorId?: number; ad
 async function openEditModal(ev: CalendarEvent) {
   editId.value = ev.id
   modalError.value = ''
+  slotWarnings.value = []
+  slotConfirmed.value = false
   await loadContractorAddresses(ev.contractor_id)
   try {
     const full = await requestJSON<Application>(`/api/v1/crm/applications/${ev.id}`)
@@ -498,6 +618,25 @@ async function saveApplication() {
   saving.value = true
   modalError.value = ''
   try {
+    if (!slotConfirmed.value) {
+      const res = await checkSlot({
+        application_id: editId.value,
+        engineer_id: appForm.value.engineer_id,
+        executor_ids: appForm.value.executor_ids,
+        plan_datetime_from: datetimeLocalToRFC3339(appForm.value.plan_from),
+        plan_datetime_to: datetimeLocalToRFC3339(appForm.value.plan_to),
+        is_duty: appForm.value.is_duty
+      })
+      if (res.conflict) {
+        modalError.value = res.conflict
+        return
+      }
+      if (res.warnings.length > 0) {
+        slotWarnings.value = warningsText(res)
+        slotConfirmed.value = true
+        return
+      }
+    }
     const payload = {
       contractor_id: appForm.value.contractor_id,
       address_id: appForm.value.address_id,
@@ -528,6 +667,8 @@ async function saveApplication() {
       })
     }
     modalOpen.value = false
+    slotWarnings.value = []
+    slotConfirmed.value = false
     await loadCalendar()
   } catch (err) {
     modalError.value = err instanceof ApiError ? err.message : 'Ошибка сохранения заявки'
@@ -574,7 +715,11 @@ async function discussWithAI(ev: CalendarEvent) {
   await router.push({ path: '/chat', query: { convId: String(conv.id) } })
 }
 
-watch([anchorDate, viewMode, selectedEngineerId, selectedSubdivisionId, onlyMyCalendar], () => {
+// Пока не применены сохранённые настройки, смена режима не должна запускать лишнюю загрузку.
+const metaReady = ref(false)
+
+watch([anchorDate, boardDate, viewMode, selectedEngineerId, selectedSubdivisionId, onlyMyCalendar], () => {
+  if (!metaReady.value) return
   void loadCalendar()
 })
 
@@ -582,6 +727,14 @@ watch(
   () => realtime.calendarRevision,
   () => {
     void loadCalendar()
+  }
+)
+
+watch(
+  () => [appForm.value.engineer_id, appForm.value.plan_from, appForm.value.plan_to, appForm.value.executor_ids.join(',')],
+  () => {
+    slotWarnings.value = []
+    slotConfirmed.value = false
   }
 )
 
@@ -596,6 +749,7 @@ watch(
 
 onMounted(async () => {
   await loadMeta()
+  metaReady.value = true
   await loadCalendar()
   if (route.query.createContractorId && auth.hasPerm('crm.application.create')) {
     await openCreateModal({
@@ -611,15 +765,43 @@ onMounted(async () => {
     <div class="toolbar">
       <NSpace align="center">
         <NButton @click="shiftRange(-1)">← Назад</NButton>
-        <NButton @click="resetToday">Сегодня</NButton>
+        <NButton :type="viewMode === 'board' && toISODate(boardDate) === toISODate(new Date()) ? 'primary' : 'default'" @click="resetToday">Сегодня</NButton>
+        <NButton
+          v-if="viewMode === 'board'"
+          :type="isTomorrow(boardDate) ? 'primary' : 'default'"
+          @click="boardDate = addDays(startOfDay(new Date()), 1)"
+        >
+          Завтра
+        </NButton>
         <NButton @click="shiftRange(1)">Вперёд →</NButton>
+        <NDatePicker
+          v-if="viewMode === 'board'"
+          type="date"
+          style="width: 150px"
+          format="dd.MM.yyyy"
+          :value="boardDate.getTime()"
+          :clearable="false"
+          @update:value="(v: number | null) => v && (boardDate = startOfDay(new Date(v)))"
+        />
         <NRadioGroup v-model:value="viewMode" size="small">
+          <NRadioButton value="board">Расписание</NRadioButton>
           <NRadioButton value="week">Неделя</NRadioButton>
           <NRadioButton value="day">День</NRadioButton>
           <NRadioButton value="list">Список</NRadioButton>
         </NRadioGroup>
         <NSelect
-          v-if="auth.hasPerm('crm.calendar.select_user')"
+          v-if="viewMode === 'board' && auth.hasPerm('crm.calendar.select_user')"
+          v-model:value="boardEngineerIds"
+          multiple
+          clearable
+          filterable
+          max-tag-count="responsive"
+          style="width: 260px"
+          placeholder="Выберите исполнителей..."
+          :options="engineerOptions.filter((o) => o.value !== 0)"
+        />
+        <NSelect
+          v-if="viewMode !== 'board' && auth.hasPerm('crm.calendar.select_user')"
           style="width: 210px"
           :value="selectedEngineerId ?? 0"
           :options="engineerOptions"
@@ -654,7 +836,21 @@ onMounted(async () => {
     </NAlert>
 
     <NSpin :show="loading">
-      <div v-if="viewMode !== 'list'" class="calendar-grid" :class="{ single: viewMode === 'day' }">
+      <template v-if="viewMode === 'board'">
+        <div class="board-title">{{ boardTitle }}</div>
+        <EngineerScheduleBoard
+          :load="boardLoad"
+          :events="boardEvents"
+          :order="engineerOrder"
+          :visible-ids="boardVisibleIds"
+          :can-create="auth.hasPerm('crm.application.create')"
+          :can-update="auth.hasPerm('crm.application.update')"
+          @open="openDetails"
+          @create="(p) => openCreateModal({ start: p.start, end: p.end, engineerId: p.engineerId })"
+          @move="onBoardMove"
+        />
+      </template>
+      <div v-else-if="viewMode !== 'list'" class="calendar-grid" :class="{ single: viewMode === 'day' }">
         <div
           v-for="day in rangeDays"
           :key="toISODate(day)"
@@ -886,6 +1082,10 @@ onMounted(async () => {
       style="width: 620px; max-width: 96vw"
     >
       <NAlert v-if="modalError" type="error" style="margin-bottom: 12px">{{ modalError }}</NAlert>
+      <NAlert v-if="slotWarnings.length" type="warning" title="Проверьте время заявки" style="margin-bottom: 12px">
+        <div v-for="w in slotWarnings" :key="w">{{ w }}</div>
+        <div style="margin-top: 6px">Нажмите «Сохранить всё равно», если это согласовано.</div>
+      </NAlert>
       <NForm label-placement="top">
         <NFormItem label="Контрагент">
           <NSelect v-model:value="appForm.contractor_id" filterable :options="contractorOptions" />
@@ -986,7 +1186,27 @@ onMounted(async () => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="modalOpen = false">Отмена</NButton>
-          <NButton type="primary" :loading="saving" @click="saveApplication">Сохранить</NButton>
+          <NButton :type="slotWarnings.length ? 'warning' : 'primary'" :loading="saving" @click="saveApplication">
+            {{ slotWarnings.length ? 'Сохранить всё равно' : 'Сохранить' }}
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      :show="pendingMove !== null"
+      preset="card"
+      title="Перенести заявку?"
+      style="width: 480px; max-width: 96vw"
+      @update:show="(v: boolean) => !v && (pendingMove = null)"
+    >
+      <NAlert type="warning">
+        <div v-for="w in pendingMove?.warnings ?? []" :key="w">{{ w }}</div>
+      </NAlert>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="pendingMove = null">Отмена</NButton>
+          <NButton type="warning" @click="pendingMove && applyMove(pendingMove)">Перенести всё равно</NButton>
         </NSpace>
       </template>
     </NModal>
@@ -998,6 +1218,12 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+.board-title {
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 8px;
 }
 .toolbar {
   display: flex;

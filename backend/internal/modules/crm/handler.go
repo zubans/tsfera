@@ -88,6 +88,7 @@ func (h *Handler) Mount(r chi.Router) {
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications", h.listApplications)
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications/export", h.exportApplications)
 			cr.With(platform.RequirePermission("crm.calendar.view")).Get("/applications/calendar", h.listCalendarEvents)
+			h.mountSchedule(cr)
 			cr.With(platform.RequirePermission("crm.application.view")).Get("/applications/{id}", h.getApplication)
 			cr.With(platform.RequirePermission("crm.application.create")).Post("/applications", h.createApplication)
 			cr.With(platform.RequirePermission("crm.application.update")).Put("/applications/{id}", h.updateApplication)

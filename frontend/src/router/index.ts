@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/modules/crm/ContractorsView.vue')
   },
   {
+    path: '/crm/timesheet',
+    name: 'crm-timesheet',
+    meta: { title: 'Табель и план' },
+    component: () => import('@/modules/crm/TimesheetAndPlanView.vue')
+  },
+  {
     path: '/crm/operations',
     name: 'crm-operations',
     meta: { title: 'Договоры, Задачи, Звонки и Отчёты' },

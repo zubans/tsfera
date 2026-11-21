@@ -102,6 +102,11 @@ func (m *Module) Permissions() []platform.PermissionDef {
 		{Key: "crm.banner.manage", Group: "CRM", Resource: "banner", Action: "manage", Description: "Управление баннерами (фото до/после для инженеров)"},
 		{Key: "crm.traffic_source.manage", Group: "CRM", Resource: "traffic_source", Action: "manage", Description: "Управление источниками трафика"},
 		{Key: "crm.setting.manage", Group: "CRM", Resource: "setting", Action: "manage", Description: "Управление глобальными настройками CRM"},
+		{Key: "crm.timesheet.view", Group: "CRM", Resource: "timesheet", Action: "view", Description: "Просмотр табеля всех сотрудников"},
+		{Key: "crm.timesheet.manage", Group: "CRM", Resource: "timesheet", Action: "manage", Description: "Ведение табеля: смены, дежурства, отпуска, больничные, резерв"},
+		{Key: "crm.plan.view", Group: "CRM", Resource: "plan", Action: "view", Description: "Просмотр плана и факта всех инженеров"},
+		{Key: "crm.plan.view_own", Group: "CRM", Resource: "plan", Action: "view_own", Description: "Просмотр своего плана и факта"},
+		{Key: "crm.plan.manage", Group: "CRM", Resource: "plan", Action: "manage", Description: "Установка дневного плана по подразделениям"},
 	})
 }
 

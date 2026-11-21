@@ -806,3 +806,98 @@ export interface AIUsageLog {
   error_text?: string
   created_at: string
 }
+
+export type TimesheetKind = 'work' | 'duty' | 'vacation' | 'sick' | 'unpaid' | 'reserve'
+
+export interface TimesheetEntry {
+  id: number
+  user_id: number
+  subdivision_id?: number | null
+  kind: TimesheetKind
+  starts_at: string
+  ends_at: string
+  comment: string
+}
+
+export interface TimeInterval {
+  from: string
+  to: string
+}
+
+export interface FreeSlot extends TimeInterval {
+  short: boolean
+}
+
+export interface DayAbsence extends TimeInterval {
+  kind: TimesheetKind
+  comment: string
+}
+
+export interface EngineerDayLoad {
+  user_id: number
+  full_name: string
+  color: string
+  subdivision_id?: number | null
+  is_service: boolean
+  applications_count: number
+  completed_count: number
+  planned_sum: number
+  work: TimeInterval[]
+  duty: TimeInterval[]
+  absences: DayAbsence[]
+  busy: TimeInterval[]
+  free: FreeSlot[]
+  work_minutes: number
+  busy_minutes: number
+  load_percent: number | null
+  on_duty: boolean
+  schedule_source: 'timesheet' | 'default'
+}
+
+export interface CalendarLoad {
+  date: string
+  grid_from: string
+  grid_to: string
+  min_free_minutes: number
+  engineers: EngineerDayLoad[]
+  totals: { applications: number; engineers: number; planned_sum: number }
+}
+
+export interface SlotWarning {
+  user_id: number
+  user_name: string
+  kind: 'outside_schedule' | 'duty' | 'absence'
+  message: string
+}
+
+export interface SlotCheckResult {
+  conflict?: string
+  warnings: SlotWarning[]
+}
+
+export interface DailyPlan {
+  id: number
+  subdivision_id: number
+  amount: number
+  effective_from: string
+}
+
+export interface PlanFactRow {
+  user_id: number
+  full_name: string
+  subdivision_id?: number | null
+  plan_days: number
+  plan_amount: number
+  fact_amount: number
+  percent: number | null
+  no_timesheet: boolean
+}
+
+export interface PlanFactReport {
+  from: string
+  to: string
+  rows: PlanFactRow[]
+  plan_amount: number
+  fact_amount: number
+  percent: number | null
+}

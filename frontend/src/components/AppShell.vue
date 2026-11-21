@@ -216,6 +216,13 @@ const menuOptions = computed<MenuOption[]>(() => {
   if (auth.hasPerm('crm.contractor.view')) {
     opts.push({ label: 'Контрагенты и Адреса', key: '/crm/contractors' })
   }
+  if (
+    ['crm.timesheet.view', 'crm.timesheet.manage', 'crm.plan.view', 'crm.plan.view_own', 'crm.plan.manage'].some((p) =>
+      auth.hasPerm(p)
+    )
+  ) {
+    opts.push({ label: 'Табель и план', key: '/crm/timesheet' })
+  }
   if (auth.hasPerm('crm.contract.view') || auth.hasPerm('crm.task.view') || auth.hasPerm('crm.call.view')) {
     opts.push({ label: 'Договоры, Задачи, Отчёты', key: '/crm/operations' })
   }

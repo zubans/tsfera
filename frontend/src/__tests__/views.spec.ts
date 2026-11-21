@@ -82,6 +82,9 @@ describe('Core UI Views integration specs', () => {
       if (url.includes('/api/v1/crm/contractors')) {
         return jsonResp({ items: [{ id: 5, name: 'ООО Котельная', type: 2, note: '' }], total: 1 })
       }
+      if (url.includes('/api/v1/crm/settings/calendar_settings')) {
+        return jsonResp({ view_mode: 'week' })
+      }
       if (url.includes('/api/v1/crm/applications/calendar')) {
         calCalls++
         return jsonResp([
