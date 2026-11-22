@@ -79,12 +79,17 @@ const createForm = ref({
   content: '# Заголовок\n\nТекст регламента...'
 })
 
+const IMPORT_EXTENSIONS = ['.docx', '.xlsx', '.pdf']
 const importModalOpen = ref(false)
 const importSpace = ref('general')
 const importDocType = ref('sop')
 const importTitle = ref('')
 const importFile = ref<File | null>(null)
+const importFileInput = ref<HTMLInputElement | null>(null)
 const importError = ref('')
+const importDragOver = ref(false)
+const workspaceDragDepth = ref(0)
+const workspaceDragOver = computed(() => workspaceDragDepth.value > 0)
 const uploading = ref(false)
 
 const renderedHtml = computed(() => renderMarkdown(currentDoc.value?.content || ''))
@@ -311,6 +316,66 @@ async function uploadAttachment(ev: Event) {
   await openDocument(currentDoc.value.id)
 }
 
+function selectImportFile(file: File | null) {
+  importError.value = ''
+  if (!file) {
+    importFile.value = null
+    return
+  }
+  const lower = file.name.toLowerCase()
+  if (!IMPORT_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+    importFile.value = null
+    importError.value = 'Неподдерживаемый формат файла: выберите .docx, .xlsx или .pdf'
+    return
+  }
+  importFile.value = file
+}
+
+function clearImportFile() {
+  importFile.value = null
+  importError.value = ''
+  if (importFileInput.value) importFileInput.value.value = ''
+}
+
+function onImportInputChange(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  selectImportFile(input.files?.[0] ?? null)
+}
+
+function onModalDrop(ev: DragEvent) {
+  importDragOver.value = false
+  selectImportFile(ev.dataTransfer?.files?.[0] ?? null)
+}
+
+function hasDraggedFiles(ev: DragEvent): boolean {
+  return Boolean(ev.dataTransfer?.types && Array.from(ev.dataTransfer.types).includes('Files'))
+}
+
+function onWorkspaceDragEnter(ev: DragEvent) {
+  if (!auth.hasPerm('docs.create') || importModalOpen.value || !hasDraggedFiles(ev)) return
+  workspaceDragDepth.value++
+}
+
+function onWorkspaceDragOver(ev: DragEvent) {
+  if (!auth.hasPerm('docs.create') || importModalOpen.value || !hasDraggedFiles(ev)) return
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy'
+}
+
+function onWorkspaceDragLeave(ev: DragEvent) {
+  if (!hasDraggedFiles(ev)) return
+  workspaceDragDepth.value = Math.max(0, workspaceDragDepth.value - 1)
+}
+
+function onWorkspaceDrop(ev: DragEvent) {
+  workspaceDragDepth.value = 0
+  if (!auth.hasPerm('docs.create') || importModalOpen.value) return
+  const file = ev.dataTransfer?.files?.[0] ?? null
+  if (!file) return
+  if (selectedSpace.value) importSpace.value = selectedSpace.value
+  importModalOpen.value = true
+  selectImportFile(file)
+}
+
 async function submitImportFile() {
   if (!importFile.value) return
   uploading.value = true
@@ -326,7 +391,7 @@ async function submitImportFile() {
       body: fd
     })
     importModalOpen.value = false
-    importFile.value = null
+    clearImportFile()
     importTitle.value = ''
     await loadCatalog()
     await openDocument(doc.id)
@@ -376,7 +441,20 @@ onMounted(async () => {
 </script>
 
 <template>
-  <NLayout has-sider class="docs-shell">
+  <div
+    class="docs-drop-host"
+    @dragenter.prevent="onWorkspaceDragEnter"
+    @dragover.prevent="onWorkspaceDragOver"
+    @dragleave="onWorkspaceDragLeave"
+    @drop.prevent="onWorkspaceDrop"
+  >
+    <div v-if="workspaceDragOver" class="workspace-drop-overlay">
+      <div class="workspace-drop-card">
+        Перетащите файл <strong>.docx</strong>, <strong>.xlsx</strong> или <strong>.pdf</strong> для импорта в базу знаний
+      </div>
+    </div>
+
+    <NLayout has-sider class="docs-shell">
     <NLayoutSider bordered :width="300" style="background: #ffffff; padding: 12px">
       <NSpace vertical :size="10">
         <NSpace justify="space-between">
@@ -727,16 +805,36 @@ onMounted(async () => {
           <NInput v-model:value="importTitle" />
         </NFormItem>
         <NFormItem label="Файл .docx / .xlsx / .pdf">
-          <input
-            type="file"
-            accept=".docx,.xlsx,.pdf"
-            @change="
-              (e) => {
-                importError = ''
-                importFile = (e.target as HTMLInputElement).files?.[0] ?? null
-              }
-            "
-          />
+          <div
+            class="import-dropzone"
+            :class="{ 'is-dragover': importDragOver, 'has-file': Boolean(importFile) }"
+            @click="importFileInput?.click()"
+            @dragenter.prevent="importDragOver = true"
+            @dragover.prevent="importDragOver = true"
+            @dragleave.prevent="importDragOver = false"
+            @drop.prevent="onModalDrop"
+          >
+            <input
+              ref="importFileInput"
+              type="file"
+              accept=".docx,.xlsx,.pdf"
+              class="import-file-hidden"
+              @change="onImportInputChange"
+            />
+            <template v-if="importFile">
+              <div class="dropzone-file">
+                <strong>{{ importFile.name }}</strong>
+                <span class="muted">{{ Math.max(1, Math.round(importFile.size / 1024)) }} КБ</span>
+              </div>
+              <NButton size="tiny" text type="error" @click.stop="clearImportFile">
+                Убрать файл
+              </NButton>
+            </template>
+            <template v-else>
+              <div class="dropzone-title">Перетащите файл сюда или нажмите для выбора</div>
+              <div class="muted">Поддерживаются .docx, .xlsx и .pdf (до 50 МБ)</div>
+            </template>
+          </div>
         </NFormItem>
       </NForm>
       <template #footer>
@@ -749,9 +847,72 @@ onMounted(async () => {
       </template>
     </NModal>
   </NLayout>
+  </div>
 </template>
 
 <style scoped>
+.docs-drop-host {
+  position: relative;
+}
+.workspace-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: rgba(37, 99, 235, 0.09);
+  border: 2px dashed #2563eb;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.workspace-drop-card {
+  background: #ffffff;
+  color: #1e293b;
+  padding: 16px 24px;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+  font-size: 14px;
+}
+.import-dropzone {
+  width: 100%;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.import-dropzone:hover,
+.import-dropzone.is-dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.import-dropzone.has-file {
+  border-style: solid;
+  border-color: #93c5fd;
+  background: #f0f9ff;
+}
+.import-file-hidden {
+  display: none;
+}
+.dropzone-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+.dropzone-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  word-break: break-all;
+}
 .docs-shell {
   min-height: calc(100vh - 90px);
   border: 1px solid #e2e8f0;
