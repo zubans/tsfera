@@ -93,16 +93,30 @@ type DocComment struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
+const (
+	AttachmentKindFile      = "file"
+	AttachmentKindSchematic = "schematic"
+
+	AnalysisStatusPending = "pending"
+	AnalysisStatusDone    = "done"
+	AnalysisStatusFailed  = "failed"
+)
+
 type Attachment struct {
-	ID            int64     `json:"id"`
-	DocumentID    int64     `json:"document_id"`
-	Filename      string    `json:"filename"`
-	MimeType      string    `json:"mime_type"`
-	SizeBytes     int64     `json:"size_bytes"`
-	StoragePath   string    `json:"-"`
-	ExtractedText string    `json:"extracted_text,omitempty"`
-	CreatedBy     int64     `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             int64      `json:"id"`
+	DocumentID     int64      `json:"document_id"`
+	Filename       string     `json:"filename"`
+	MimeType       string     `json:"mime_type"`
+	SizeBytes      int64      `json:"size_bytes"`
+	StoragePath    string     `json:"-"`
+	ExtractedText  string     `json:"extracted_text,omitempty"`
+	Kind           string     `json:"kind"`
+	PageNumber     int        `json:"page_number,omitempty"`
+	AnalysisStatus string     `json:"analysis_status,omitempty"`
+	AnalysisError  string     `json:"analysis_error,omitempty"`
+	AnalyzedAt     *time.Time `json:"analyzed_at,omitempty"`
+	CreatedBy      int64      `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type SpaceSummary struct {

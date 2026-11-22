@@ -434,10 +434,11 @@ func (r *PgRepository) DeleteComment(ctx context.Context, docID, commentID int64
 
 func (r *PgRepository) ListAttachments(ctx context.Context, docID int64) ([]Attachment, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, document_id, filename, mime_type, size_bytes, storage_path, extracted_text, created_by, created_at
+		SELECT id, document_id, filename, mime_type, size_bytes, storage_path, extracted_text,
+		       kind, page_number, analysis_status, analysis_error, analyzed_at, created_by, created_at
 		FROM docs_attachments
 		WHERE document_id = $1
-		ORDER BY created_at DESC, id DESC
+		ORDER BY page_number ASC, created_at DESC, id DESC
 	`, docID)
 	if err != nil {
 		return nil, err
@@ -446,7 +447,10 @@ func (r *PgRepository) ListAttachments(ctx context.Context, docID int64) ([]Atta
 	var out []Attachment
 	for rows.Next() {
 		var a Attachment
-		if err := rows.Scan(&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText, &a.CreatedBy, &a.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText,
+			&a.Kind, &a.PageNumber, &a.AnalysisStatus, &a.AnalysisError, &a.AnalyzedAt, &a.CreatedBy, &a.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -459,7 +463,8 @@ func (r *PgRepository) ListAllAttachments(ctx context.Context, limit int) ([]Att
 		limit = 500
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT a.id, a.document_id, a.filename, a.mime_type, a.size_bytes, a.storage_path, a.extracted_text, a.created_by, a.created_at
+		SELECT a.id, a.document_id, a.filename, a.mime_type, a.size_bytes, a.storage_path, a.extracted_text,
+		       a.kind, a.page_number, a.analysis_status, a.analysis_error, a.analyzed_at, a.created_by, a.created_at
 		FROM docs_attachments a
 		JOIN docs_documents d ON d.id = a.document_id
 		WHERE d.deleted = FALSE AND a.extracted_text <> ''
@@ -473,7 +478,41 @@ func (r *PgRepository) ListAllAttachments(ctx context.Context, limit int) ([]Att
 	var out []Attachment
 	for rows.Next() {
 		var a Attachment
-		if err := rows.Scan(&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText, &a.CreatedBy, &a.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText,
+			&a.Kind, &a.PageNumber, &a.AnalysisStatus, &a.AnalysisError, &a.AnalyzedAt, &a.CreatedBy, &a.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *PgRepository) ListPendingSchematicAttachments(ctx context.Context, limit int) ([]Attachment, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 5
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT a.id, a.document_id, a.filename, a.mime_type, a.size_bytes, a.storage_path, a.extracted_text,
+		       a.kind, a.page_number, a.analysis_status, a.analysis_error, a.analyzed_at, a.created_by, a.created_at
+		FROM docs_attachments a
+		JOIN docs_documents d ON d.id = a.document_id
+		WHERE d.deleted = FALSE AND a.analysis_status = $1
+		ORDER BY a.created_at ASC, a.id ASC
+		LIMIT $2
+	`, AnalysisStatusPending, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Attachment
+	for rows.Next() {
+		var a Attachment
+		if err := rows.Scan(
+			&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText,
+			&a.Kind, &a.PageNumber, &a.AnalysisStatus, &a.AnalysisError, &a.AnalyzedAt, &a.CreatedBy, &a.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -484,10 +523,14 @@ func (r *PgRepository) ListAllAttachments(ctx context.Context, limit int) ([]Att
 func (r *PgRepository) GetAttachment(ctx context.Context, id int64) (*Attachment, error) {
 	var a Attachment
 	err := r.db.QueryRow(ctx, `
-		SELECT id, document_id, filename, mime_type, size_bytes, storage_path, extracted_text, created_by, created_at
+		SELECT id, document_id, filename, mime_type, size_bytes, storage_path, extracted_text,
+		       kind, page_number, analysis_status, analysis_error, analyzed_at, created_by, created_at
 		FROM docs_attachments
 		WHERE id = $1
-	`, id).Scan(&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText, &a.CreatedBy, &a.CreatedAt)
+	`, id).Scan(
+		&a.ID, &a.DocumentID, &a.Filename, &a.MimeType, &a.SizeBytes, &a.StoragePath, &a.ExtractedText,
+		&a.Kind, &a.PageNumber, &a.AnalysisStatus, &a.AnalysisError, &a.AnalyzedAt, &a.CreatedBy, &a.CreatedAt,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -495,12 +538,30 @@ func (r *PgRepository) GetAttachment(ctx context.Context, id int64) (*Attachment
 }
 
 func (r *PgRepository) AddAttachment(ctx context.Context, att *Attachment) error {
+	if att.Kind == "" {
+		att.Kind = AttachmentKindFile
+	}
 	return r.db.QueryRow(ctx, `
-		INSERT INTO docs_attachments (document_id, filename, mime_type, size_bytes, storage_path, extracted_text, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		INSERT INTO docs_attachments (
+			document_id, filename, mime_type, size_bytes, storage_path, extracted_text,
+			kind, page_number, analysis_status, analysis_error, analyzed_at, created_by
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 		RETURNING id, created_at
-	`, att.DocumentID, att.Filename, att.MimeType, att.SizeBytes, att.StoragePath, att.ExtractedText, att.CreatedBy).
+	`, att.DocumentID, att.Filename, att.MimeType, att.SizeBytes, att.StoragePath, att.ExtractedText,
+		att.Kind, att.PageNumber, att.AnalysisStatus, att.AnalysisError, att.AnalyzedAt, att.CreatedBy).
 		Scan(&att.ID, &att.CreatedAt)
+}
+
+func (r *PgRepository) UpdateAttachmentAnalysis(ctx context.Context, id int64, status, extractedText, errText string, analyzedAt *time.Time) error {
+	return platform.ExecExpectingOne(ctx, r.db, `
+		UPDATE docs_attachments
+		SET analysis_status = $2,
+		    extracted_text = CASE WHEN $3 <> '' THEN $3 ELSE extracted_text END,
+		    analysis_error = $4,
+		    analyzed_at = $5
+		WHERE id = $1
+	`, "Вложение не найдено", id, status, extractedText, errText, analyzedAt)
 }
 
 func (r *PgRepository) DeleteAttachment(ctx context.Context, id int64) error {

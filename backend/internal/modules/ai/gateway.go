@@ -69,6 +69,13 @@ func NewGateway(repo Repository, access ModelAccessPolicy, logger *slog.Logger) 
 
 // modelForTask — модель, назначенная задаче; без назначения — модель по умолчанию для возможности.
 func (g *Gateway) modelForTask(ctx context.Context, task AITask) (*Model, error) {
+	if task == TaskVision {
+		m, _, err := g.resolveVisionModel(ctx, nil)
+		if err != nil {
+			return nil, nil
+		}
+		return m, nil
+	}
 	if id, err := g.repo.GetTaskModelID(ctx, task); err != nil {
 		return nil, err
 	} else if id != nil {

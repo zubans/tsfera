@@ -45,7 +45,9 @@ type Repository interface {
 
 	ListAttachments(ctx context.Context, docID int64) ([]Attachment, error)
 	ListAllAttachments(ctx context.Context, limit int) ([]Attachment, error)
+	ListPendingSchematicAttachments(ctx context.Context, limit int) ([]Attachment, error)
 	GetAttachment(ctx context.Context, id int64) (*Attachment, error)
 	AddAttachment(ctx context.Context, att *Attachment) error
+	UpdateAttachmentAnalysis(ctx context.Context, id int64, status, extractedText, errText string, analyzedAt *time.Time) error
 	DeleteAttachment(ctx context.Context, id int64) error
 }

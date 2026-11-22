@@ -173,6 +173,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 		docFetcher := &docsFetcherAdapter{svc: docsMod.Service}
 		aiMod := ai.NewModule(repos.ai, auth, usersMod.Service, crmMod.Service, docFetcher, bus, logger, sources...)
 		crmMod.Service.SetAudioTranscriber(aiMod.Gateway)
+		docsMod.Service.SetSchematicAnalyzer(&schematicAnalyzerAdapter{gw: aiMod.Gateway})
 		aiMod.Gateway.SetCLIHome(cfg.AICLIHome)
 		aiMod.Gateway.SetCLIProxy(cfg.AICLIProxy)
 
@@ -402,4 +403,25 @@ func (a *docsFetcherAdapter) FetchDocumentMarkdown(ctx context.Context, auth *pl
 		return "", err
 	}
 	return fmt.Sprintf("# %s\n\n%s", doc.Title, doc.Content), nil
+}
+
+type schematicAnalyzerAdapter struct {
+	gw *ai.Gateway
+}
+
+func (a *schematicAnalyzerAdapter) AnalyzeImage(
+	ctx context.Context,
+	auth *platform.AuthContext,
+	systemPrompt, userPrompt string,
+	images []docs.SchematicImage,
+	operation string,
+) (string, error) {
+	in := make([]ai.ImageInput, 0, len(images))
+	for _, img := range images {
+		in = append(in, ai.ImageInput{
+			MimeType: img.MimeType,
+			Data:     img.Data,
+		})
+	}
+	return a.gw.AnalyzeImage(ctx, auth, systemPrompt, userPrompt, in, operation)
 }

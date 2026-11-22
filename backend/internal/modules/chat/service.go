@@ -214,6 +214,10 @@ func (s *Service) SendMessage(
 func (s *Service) buildSystemPrompt(ctx context.Context, auth *platform.AuthContext, conv *Conversation) string {
 	var b strings.Builder
 	b.WriteString("Ты интеллектуальный ассистент сервисной CRM-системы «Теплосфера». Отвечай по-русски точно и опирайся только на факты из инструментов, базы знаний и CRM. Всегда проверяй права и не придумывай данные.")
+	b.WriteString("\n\nСтрогие правила работы со схемами и технической документацией:\n" +
+		"- Если вопрос касается электрических или гидравлических схем, клеммников, номеров контактов, цветов проводов или подключений — найди документ и вызови docs_inspect_schematic по attachment_id схемы (при мелких обозначениях укажи region: top_left / top_right / bottom_left / bottom_right / center).\n" +
+		"- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО придумывать, додумывать или подставлять по памяти номера клемм, контактов, цвета проводов и соединения.\n" +
+		"- Если на схеме или в базе знаний нет точного ответа, либо участок нечитаем — прямо скажи пользователю, что этих данных на схеме/в документации нет.")
 	if conv.EntityType != "" && conv.EntityID > 0 && s.resolver != nil {
 		if sum, err := s.resolver.ResolveEntity(ctx, auth, conv.EntityType, conv.EntityID); err == nil && sum != nil {
 			fmt.Fprintf(&b, "\n\nПользователь открыл этот чат из карточки CRM (%s #%d):\n%s", conv.EntityType, conv.EntityID, sum.Markdown)

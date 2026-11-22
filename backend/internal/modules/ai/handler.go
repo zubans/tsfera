@@ -346,6 +346,10 @@ func (h *Handler) saveTaskAssignment(w http.ResponseWriter, r *http.Request) {
 			platform.WriteError(w, h.logger, platform.NewValidation("Консольные агенты и шлюз подходят только для текстовых задач", nil))
 			return
 		}
+		if task == TaskVision && m.ProviderKind != ProviderCLIGateway {
+			platform.WriteError(w, h.logger, platform.NewValidation("Для анализа схем и изображений поддерживаются только модели шлюза консольных агентов (cli_gateway)", nil))
+			return
+		}
 	}
 	if err := h.repo.SaveTaskAssignment(r.Context(), task, in.ModelID); err != nil {
 		platform.WriteError(w, h.logger, err)
