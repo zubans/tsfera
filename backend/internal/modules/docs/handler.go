@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/zubans/tsfera/backend/pkg/platform"
@@ -412,7 +413,11 @@ func (h *Handler) downloadAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", att.MimeType)
-	w.Header().Set("Content-Disposition", `attachment; filename*=UTF-8''`+url.PathEscape(att.Filename))
+	disposition := "attachment"
+	if r.URL.Query().Get("inline") == "1" && strings.HasPrefix(strings.ToLower(att.MimeType), "image/") {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Disposition", disposition+`; filename*=UTF-8''`+url.PathEscape(att.Filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }

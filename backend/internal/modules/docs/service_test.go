@@ -285,7 +285,46 @@ func (m *memDocsRepo) ListAttachments(_ context.Context, docID int64) ([]Attachm
 }
 
 func (m *memDocsRepo) ListAllAttachments(context.Context, int) ([]Attachment, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Attachment
+	for _, a := range m.atts {
+		if a.ExtractedText != "" {
+			out = append(out, *a)
+		}
+	}
+	return out, nil
+}
+
+func (m *memDocsRepo) ListPendingSchematicAttachments(_ context.Context, limit int) ([]Attachment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Attachment
+	for _, a := range m.atts {
+		if a.AnalysisStatus == AnalysisStatusPending {
+			out = append(out, *a)
+			if limit > 0 && len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (m *memDocsRepo) UpdateAttachmentAnalysis(_ context.Context, id int64, status, extractedText, errText string, analyzedAt *time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, ok := m.atts[id]
+	if !ok {
+		return platform.NewNotFound("Вложение не найдено")
+	}
+	a.AnalysisStatus = status
+	if extractedText != "" {
+		a.ExtractedText = extractedText
+	}
+	a.AnalysisError = errText
+	a.AnalyzedAt = analyzedAt
+	return nil
 }
 
 func (m *memDocsRepo) GetAttachment(_ context.Context, id int64) (*Attachment, error) {

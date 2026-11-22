@@ -50,12 +50,13 @@ type AITask string
 const (
 	TaskChat      AITask = "chat"      // чат с ИИ и «Обсудить с ИИ»
 	TaskCompose   AITask = "compose"   // генерация текстов
+	TaskVision    AITask = "vision"    // анализ схем и изображений (через шлюз agy)
 	TaskEmbedding AITask = "embedding" // векторы для гибридного поиска
 	TaskSTT       AITask = "stt"       // расшифровка записей звонков
 )
 
 // AllTasks — задачи в порядке показа в настройках.
-var AllTasks = []AITask{TaskChat, TaskCompose, TaskEmbedding, TaskSTT}
+var AllTasks = []AITask{TaskChat, TaskCompose, TaskVision, TaskEmbedding, TaskSTT}
 
 // Capability — какая возможность модели нужна задаче.
 func (t AITask) Capability() ModelCapability {
@@ -80,8 +81,11 @@ func (t AITask) Valid() bool {
 
 // TaskForOperation сопоставляет операцию вызова с задачей назначения модели.
 func TaskForOperation(op string) AITask {
-	if op == "compose" {
+	switch op {
+	case "compose":
 		return TaskCompose
+	case "vision", "schematic_index", "schematic_inspect":
+		return TaskVision
 	}
 	return TaskChat
 }
@@ -135,6 +139,12 @@ type ToolCall struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
+}
+
+// ImageInput — изображение для мультимодального анализа через шлюз agy.
+type ImageInput struct {
+	MimeType string
+	Data     []byte
 }
 
 type Message struct {

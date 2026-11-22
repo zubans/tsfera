@@ -714,9 +714,35 @@ onMounted(async () => {
                   <strong>Вложения:</strong>
                   <input type="file" @change="uploadAttachment" />
                   <div v-for="att in currentDoc.attachments" :key="att.id" class="link-row">
-                    <a :href="`/api/v1/docs/attachments/${att.id}/download`" target="_blank">
-                      {{ att.filename }}
-                    </a>
+                    <NSpace :size="6" align="center">
+                      <a
+                        :href="
+                          att.kind === 'schematic'
+                            ? `/api/v1/docs/attachments/${att.id}/download?inline=1`
+                            : `/api/v1/docs/attachments/${att.id}/download`
+                        "
+                        target="_blank"
+                      >
+                        {{ att.filename }}
+                      </a>
+                      <NTag v-if="att.kind === 'schematic'" size="tiny" type="info">
+                        {{ att.page_number ? `Схема · стр. ${att.page_number}` : 'Схема' }}
+                      </NTag>
+                      <NTag v-if="att.analysis_status === 'pending'" size="tiny" type="warning">
+                        Распознаётся…
+                      </NTag>
+                      <NTag v-else-if="att.analysis_status === 'done'" size="tiny" type="success">
+                        В поиске
+                      </NTag>
+                      <NTag
+                        v-else-if="att.analysis_status === 'failed'"
+                        size="tiny"
+                        type="error"
+                        :title="att.analysis_error || 'Ошибка анализа схемы'"
+                      >
+                        Ошибка анализа
+                      </NTag>
+                    </NSpace>
                     <span class="muted">{{ Math.round(att.size_bytes / 1024) }} КБ</span>
                   </div>
                 </NSpace>

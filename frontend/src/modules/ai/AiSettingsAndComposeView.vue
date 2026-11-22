@@ -84,6 +84,7 @@ const providerKindOptions = [
 const TASK_LABELS: Record<string, string> = {
   chat: 'Чат с ИИ и «Обсудить с ИИ»',
   compose: 'Генерация текстов (Compose)',
+  vision: 'Анализ схем и изображений (шлюз agy)',
   embedding: 'Эмбеддинги для поиска',
   stt: 'Расшифровка звонков'
 }
@@ -280,7 +281,10 @@ async function importModels(p: AIProvider) {
 function taskModelOptions(t: AITaskAssignment) {
   return models.value
     .filter((m) => m.active && m.capability === t.capability)
-    .filter((m) => t.capability === 'chat' || !TEXT_TOOL_KINDS.includes(providerKindOf(m.provider_id)))
+    .filter((m) => {
+      if (t.task === 'vision') return providerKindOf(m.provider_id) === 'cli_gateway'
+      return t.capability === 'chat' || !TEXT_TOOL_KINDS.includes(providerKindOf(m.provider_id))
+    })
     .map((m) => ({ label: `${m.name} (${m.provider_name ?? ''})`, value: m.id }))
 }
 

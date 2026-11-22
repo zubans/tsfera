@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/zubans/tsfera/backend/pkg/platform"
 )
@@ -192,4 +194,164 @@ func (g *Gateway) ListProviderModels(ctx context.Context, p *Provider) ([]string
 		return g.listGatewayModels(ctx, p)
 	}
 	return nil, platform.NewValidation("Загрузка списка моделей поддерживается для консольных агентов и шлюза", nil)
+}
+
+// resolveVisionModel подбирает активную модель шлюза agy (cli_gateway) для анализа схем и изображений.
+func (g *Gateway) resolveVisionModel(ctx context.Context, auth *platform.AuthContext) (*Model, *Provider, error) {
+	var m *Model
+	if id, err := g.repo.GetTaskModelID(ctx, TaskVision); err != nil {
+		return nil, nil, err
+	} else if id != nil {
+		cand, err := g.repo.GetModel(ctx, *id)
+		if err != nil {
+			return nil, nil, err
+		}
+		if cand != nil && cand.Active {
+			m = cand
+		}
+	}
+
+	if m == nil {
+		models, err := g.repo.ListModels(ctx, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		for i := range models {
+			cand := &models[i]
+			if !cand.Active || cand.Capability != CapChat || cand.ProviderKind != ProviderCLIGateway {
+				continue
+			}
+			if m == nil || (cand.IsDefault && !m.IsDefault) {
+				cp := *cand
+				m = &cp
+			}
+		}
+	}
+	if m == nil {
+		return nil, nil, platform.NewNotConfigured("Не настроена модель шлюза agy (cli_gateway) для анализа схем и изображений")
+	}
+
+	if g.access != nil && auth != nil {
+		allowed, err := g.access.CanAccessModel(ctx, auth, m.ID, m.OpenToAll)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !allowed {
+			return nil, nil, platform.NewForbidden("Нет доступа к модели анализа схем")
+		}
+	}
+
+	p, err := g.repo.GetProvider(ctx, m.ProviderID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if p == nil || !p.Active {
+		return nil, nil, platform.NewNotConfigured("Провайдер модели анализа схем неактивен или удалён")
+	}
+	if p.Kind != ProviderCLIGateway {
+		return nil, nil, platform.NewValidation("Анализ схем и изображений поддерживается только через шлюз консольных агентов (cli_gateway)", nil)
+	}
+	return m, p, nil
+}
+
+// AnalyzeImage отправляет одно или несколько изображений с промптом в Vision-модель через шлюз agy (cli_gateway).
+func (g *Gateway) AnalyzeImage(
+	ctx context.Context,
+	auth *platform.AuthContext,
+	systemPrompt string,
+	userPrompt string,
+	images []ImageInput,
+	operation string,
+) (string, error) {
+	if len(images) == 0 {
+		return "", platform.NewValidation("Не переданы изображения для анализа", nil)
+	}
+	started := time.Now()
+	m, p, err := g.resolveVisionModel(ctx, auth)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(operation) == "" {
+		operation = "vision"
+	}
+
+	userParts := make([]map[string]any, 0, len(images)+1)
+	if strings.TrimSpace(userPrompt) != "" {
+		userParts = append(userParts, map[string]any{
+			"type": "text",
+			"text": userPrompt,
+		})
+	}
+	for _, img := range images {
+		if len(img.Data) == 0 {
+			continue
+		}
+		mime := strings.TrimSpace(img.MimeType)
+		if mime == "" {
+			mime = "image/png"
+		}
+		dataURL := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(img.Data)
+		userParts = append(userParts, map[string]any{
+			"type": "image_url",
+			"image_url": map[string]any{
+				"url": dataURL,
+			},
+		})
+	}
+
+	msgs := make([]map[string]any, 0, 2)
+	if strings.TrimSpace(systemPrompt) != "" {
+		msgs = append(msgs, map[string]any{
+			"role":    "system",
+			"content": systemPrompt,
+		})
+	}
+	msgs = append(msgs, map[string]any{
+		"role":    "user",
+		"content": userParts,
+	})
+
+	callCtx, cancel := context.WithTimeout(ctx, providerTimeout(p))
+	defer cancel()
+
+	payload := map[string]any{
+		"model":    m.ModelID,
+		"messages": msgs,
+		"stream":   false,
+	}
+	httpResp, err := g.gatewayRequest(callCtx, p, http.MethodPost, "/chat/completions", payload)
+	if err != nil {
+		g.recordUsage(ctx, auth, m, operation, started, nil, err)
+		return "", err
+	}
+	defer httpResp.Body.Close()
+
+	var parsed struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.NewDecoder(io.LimitReader(httpResp.Body, 16<<20)).Decode(&parsed); err != nil {
+		callErr := fmt.Errorf("%s: некорректный ответ шлюза при анализе изображения: %w", p.Name, err)
+		g.recordUsage(ctx, auth, m, operation, started, nil, callErr)
+		return "", callErr
+	}
+	if len(parsed.Choices) == 0 {
+		callErr := fmt.Errorf("%s: шлюз вернул пустой ответ при анализе изображения", p.Name)
+		g.recordUsage(ctx, auth, m, operation, started, nil, callErr)
+		return "", callErr
+	}
+	out := &CompletionResponse{
+		Content:          strings.TrimSpace(parsed.Choices[0].Message.Content),
+		PromptTokens:     parsed.Usage.PromptTokens,
+		CompletionTokens: parsed.Usage.CompletionTokens,
+	}
+	g.recordUsage(ctx, auth, m, operation, started, out, nil)
+	return out.Content, nil
 }

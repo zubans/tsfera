@@ -22,6 +22,7 @@ type Service struct {
 	repo           Repository
 	resolver       platform.EntityResolver
 	bus            platform.EventBus
+	analyzer       SchematicAnalyzer
 	storageDir     string
 	logger         *slog.Logger
 	clock          func() time.Time
@@ -512,6 +513,37 @@ func (s *Service) DeleteComment(ctx context.Context, auth *platform.AuthContext,
 // --- Attachments & DOCX Import & Context Export ---
 
 func (s *Service) SaveAttachment(ctx context.Context, auth *platform.AuthContext, docID int64, filename, mimeType string, data []byte) (*Attachment, error) {
+	kind := AttachmentKindFile
+	status := ""
+	lowMime := strings.ToLower(strings.TrimSpace(mimeType))
+	lowExt := strings.ToLower(filepath.Ext(strings.TrimSpace(filename)))
+	if strings.HasPrefix(lowMime, "image/") || lowExt == ".png" || lowExt == ".jpg" || lowExt == ".jpeg" || lowExt == ".webp" {
+		kind = AttachmentKindSchematic
+		status = AnalysisStatusPending
+		if lowMime == "" || lowMime == "application/octet-stream" {
+			switch lowExt {
+			case ".jpg", ".jpeg":
+				mimeType = "image/jpeg"
+			case ".webp":
+				mimeType = "image/webp"
+			default:
+				mimeType = "image/png"
+			}
+		}
+	}
+	return s.saveAttachmentWithMeta(ctx, auth, docID, filename, mimeType, data, kind, 0, status)
+}
+
+func (s *Service) saveAttachmentWithMeta(
+	ctx context.Context,
+	auth *platform.AuthContext,
+	docID int64,
+	filename, mimeType string,
+	data []byte,
+	kind string,
+	pageNumber int,
+	analysisStatus string,
+) (*Attachment, error) {
 	doc, err := s.repo.GetDocument(ctx, docID)
 	if err != nil {
 		return nil, err
@@ -547,14 +579,20 @@ func (s *Service) SaveAttachment(ctx context.Context, auth *platform.AuthContext
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
+	if kind == "" {
+		kind = AttachmentKindFile
+	}
 	att := &Attachment{
-		DocumentID:    docID,
-		Filename:      cleanName,
-		MimeType:      mimeType,
-		SizeBytes:     int64(len(data)),
-		StoragePath:   diskPath,
-		ExtractedText: extracted,
-		CreatedBy:     uid,
+		DocumentID:     docID,
+		Filename:       cleanName,
+		MimeType:       mimeType,
+		SizeBytes:      int64(len(data)),
+		StoragePath:    diskPath,
+		ExtractedText:  extracted,
+		Kind:           kind,
+		PageNumber:     pageNumber,
+		AnalysisStatus: analysisStatus,
+		CreatedBy:      uid,
 	}
 	if err := s.repo.AddAttachment(ctx, att); err != nil {
 		_ = os.Remove(diskPath)
@@ -595,11 +633,13 @@ func (s *Service) ImportDocx(ctx context.Context, auth *platform.AuthContext, sp
 }
 
 // ImportFile импортирует документ из .docx, .xlsx или .pdf в Markdown.
+// Для PDF дополнительно сохраняет обнаруженные страницы со схемами во вложениях и встраивает их в Markdown.
 func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, space, title, docType, filename string, data []byte) (*Document, error) {
 	ext := detectImportFormat(filename, data)
 	var (
-		md  string
-		err error
+		md        string
+		pdfResult *PdfImportResult
+		err       error
 	)
 	switch ext {
 	case ".docx":
@@ -607,14 +647,17 @@ func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, sp
 	case ".xlsx":
 		md, err = ExtractXlsxText(data)
 	case ".pdf":
-		md, err = ConvertPdfToMarkdown(ctx, data)
+		pdfResult, err = ExtractPdfWithSchematics(ctx, data)
+		if err == nil {
+			md = buildPdfMarkdownWithSchematics(pdfResult.Pages, nil)
+		}
 	default:
 		return nil, platform.NewValidation("Неподдерживаемый формат файла: поддерживаются .docx, .xlsx и .pdf", nil)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(md) == "" {
+	if strings.TrimSpace(md) == "" && (pdfResult == nil || len(pdfResult.Schematics) == 0) {
 		return nil, platform.NewValidation("Не удалось извлечь текст из файла", nil)
 	}
 
@@ -630,12 +673,63 @@ func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, sp
 	if dt == "" {
 		dt = DocTypeSOP
 	}
-	return s.CreateDocument(ctx, auth, SaveDocumentInput{
+
+	initialContent := md
+	if strings.TrimSpace(initialContent) == "" {
+		initialContent = "# " + resolvedTitle
+	}
+	doc, err := s.CreateDocument(ctx, auth, SaveDocumentInput{
 		Space:   space,
 		DocType: dt,
 		Title:   resolvedTitle,
-		Content: md,
+		Content: initialContent,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if pdfResult != nil && len(pdfResult.Schematics) > 0 {
+		byPage := make(map[int][]Attachment, len(pdfResult.Schematics))
+		savedAtts := make([]Attachment, 0, len(pdfResult.Schematics))
+		for _, sch := range pdfResult.Schematics {
+			att, saveErr := s.saveAttachmentWithMeta(
+				ctx,
+				auth,
+				doc.ID,
+				sch.Filename,
+				"image/png",
+				sch.Data,
+				AttachmentKindSchematic,
+				sch.PageNumber,
+				AnalysisStatusPending,
+			)
+			if saveErr != nil {
+				s.logger.Warn("failed to save extracted pdf schematic", "doc_id", doc.ID, "page", sch.PageNumber, "err", saveErr)
+				continue
+			}
+			byPage[sch.PageNumber] = append(byPage[sch.PageNumber], *att)
+			savedAtts = append(savedAtts, *att)
+		}
+		if len(savedAtts) > 0 {
+			enriched := buildPdfMarkdownWithSchematics(pdfResult.Pages, byPage)
+			if updated, updErr := s.UpdateDocument(ctx, auth, doc.ID, SaveDocumentInput{
+				Space:           doc.Space,
+				DocType:         doc.DocType,
+				Title:           doc.Title,
+				Slug:            doc.Slug,
+				Content:         enriched,
+				Status:          doc.Status,
+				Tags:            doc.Tags,
+				Visibility:      doc.Visibility,
+				ExpectedVersion: doc.Version,
+				DiffSummary:     fmt.Sprintf("Извлечено схем из PDF: %d", len(savedAtts)),
+			}); updErr == nil {
+				doc = updated
+			}
+			doc.Attachments = savedAtts
+		}
+	}
+	return doc, nil
 }
 
 func detectImportFormat(filename string, data []byte) string {

@@ -489,7 +489,16 @@ export interface DocDocument {
   visibility: string
   outline?: { level: number; title: string; anchor: string; line: number }[]
   entity_links?: { id: number; entity_type: string; entity_id: number; entity_title?: string; entity_path?: string; note: string }[]
-  attachments?: { id: number; filename: string; mime_type: string; size_bytes: number }[]
+  attachments?: {
+    id: number
+    filename: string
+    mime_type: string
+    size_bytes: number
+    kind?: string
+    page_number?: number
+    analysis_status?: string
+    analysis_error?: string
+  }[]
   updated_at: string
 }
 
@@ -524,7 +533,7 @@ export interface AIProvider {
 }
 
 export interface AITaskAssignment {
-  task: 'chat' | 'compose' | 'embedding' | 'stt'
+  task: 'chat' | 'compose' | 'vision' | 'embedding' | 'stt'
   capability: string
   model_id: number | null
   model_name?: string

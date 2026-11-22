@@ -111,6 +111,28 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func cleanPdfPage(p string) string {
+	lines := strings.Split(p, "\n")
+	var clean []string
+	blankRun := 0
+	for _, line := range lines {
+		trimmedRight := strings.TrimRight(line, " \t")
+		if strings.TrimSpace(trimmedRight) == "" {
+			blankRun++
+			if blankRun <= 1 && len(clean) > 0 {
+				clean = append(clean, "")
+			}
+			continue
+		}
+		blankRun = 0
+		clean = append(clean, trimmedRight)
+	}
+	for len(clean) > 0 && clean[len(clean)-1] == "" {
+		clean = clean[:len(clean)-1]
+	}
+	return strings.Join(clean, "\n")
+}
+
 func formatPdfTextAsMarkdown(raw string) string {
 	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
@@ -118,26 +140,8 @@ func formatPdfTextAsMarkdown(raw string) string {
 	rawPages := strings.Split(normalized, "\f")
 	pages := make([]string, 0, len(rawPages))
 	for _, p := range rawPages {
-		lines := strings.Split(p, "\n")
-		var clean []string
-		blankRun := 0
-		for _, line := range lines {
-			trimmedRight := strings.TrimRight(line, " \t")
-			if strings.TrimSpace(trimmedRight) == "" {
-				blankRun++
-				if blankRun <= 1 && len(clean) > 0 {
-					clean = append(clean, "")
-				}
-				continue
-			}
-			blankRun = 0
-			clean = append(clean, trimmedRight)
-		}
-		for len(clean) > 0 && clean[len(clean)-1] == "" {
-			clean = clean[:len(clean)-1]
-		}
-		if len(clean) > 0 {
-			pages = append(pages, strings.Join(clean, "\n"))
+		if cleaned := cleanPdfPage(p); cleaned != "" {
+			pages = append(pages, cleaned)
 		}
 	}
 	if len(pages) == 0 {
