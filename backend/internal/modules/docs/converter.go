@@ -3,6 +3,7 @@ package docs
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -312,6 +313,7 @@ func extractSheetRows(raw []byte, shared []string, out *strings.Builder) {
 	var inCell bool
 	var cellType string
 	var valBuf strings.Builder
+	rowCount := 0
 
 	for {
 		tok, err := dec.Token()
@@ -351,11 +353,19 @@ func extractSheetRows(raw []byte, shared []string, out *strings.Builder) {
 					}
 				}
 				if v != "" {
-					rowVals = append(rowVals, v)
+					rowVals = append(rowVals, strings.ReplaceAll(v, "|", `\|`))
 				}
 			case "row":
 				if len(rowVals) > 0 {
 					out.WriteString("| " + strings.Join(rowVals, " | ") + " |\n")
+					if rowCount == 0 {
+						sep := make([]string, len(rowVals))
+						for i := range sep {
+							sep[i] = "---"
+						}
+						out.WriteString("| " + strings.Join(sep, " | ") + " |\n")
+					}
+					rowCount++
 				}
 			}
 		}
@@ -378,6 +388,11 @@ func ExtractAttachmentText(filename string, data []byte) string {
 		}
 	case ".xlsx":
 		txt, err := ExtractXlsxText(data)
+		if err == nil {
+			return txt
+		}
+	case ".pdf":
+		txt, err := ConvertPdfToMarkdown(context.Background(), data)
 		if err == nil {
 			return txt
 		}

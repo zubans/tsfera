@@ -84,6 +84,7 @@ const importSpace = ref('general')
 const importDocType = ref('sop')
 const importTitle = ref('')
 const importFile = ref<File | null>(null)
+const importError = ref('')
 const uploading = ref(false)
 
 const renderedHtml = computed(() => renderMarkdown(currentDoc.value?.content || ''))
@@ -310,16 +311,17 @@ async function uploadAttachment(ev: Event) {
   await openDocument(currentDoc.value.id)
 }
 
-async function submitImportDocx() {
+async function submitImportFile() {
   if (!importFile.value) return
   uploading.value = true
+  importError.value = ''
   try {
     const fd = new FormData()
     fd.append('file', importFile.value)
     fd.append('space', importSpace.value)
     fd.append('doc_type', importDocType.value)
     if (importTitle.value.trim()) fd.append('title', importTitle.value.trim())
-    const doc = await requestJSON<DocDocument>('/api/v1/docs/import-docx', {
+    const doc = await requestJSON<DocDocument>('/api/v1/docs/import', {
       method: 'POST',
       body: fd
     })
@@ -329,7 +331,7 @@ async function submitImportDocx() {
     await loadCatalog()
     await openDocument(doc.id)
   } catch (err) {
-    errorMsg.value = err instanceof ApiError ? err.message : 'Ошибка импорта файла'
+    importError.value = err instanceof ApiError ? err.message : 'Ошибка импорта файла'
   } finally {
     uploading.value = false
   }
@@ -392,9 +394,15 @@ onMounted(async () => {
               v-if="auth.hasPerm('docs.create')"
               size="tiny"
               secondary
-              @click="importModalOpen = true"
+              title="Импорт из .docx, .xlsx или .pdf"
+              @click="
+                () => {
+                  importError = ''
+                  importModalOpen = true
+                }
+              "
             >
-              .docx/.xlsx
+              Импорт
             </NButton>
           </NSpace>
         </NSpace>
@@ -701,7 +709,10 @@ onMounted(async () => {
       </template>
     </NModal>
 
-    <NModal v-model:show="importModalOpen" preset="card" title="Импорт .docx или .xlsx в Markdown" style="width: 460px">
+    <NModal v-model:show="importModalOpen" preset="card" title="Импорт .docx, .xlsx или .pdf в Markdown" style="width: 460px">
+      <NAlert v-if="importError" type="error" closable style="margin-bottom: 12px" @close="importError = ''">
+        {{ importError }}
+      </NAlert>
       <NForm label-placement="top">
         <NFormItem label="Пространство">
           <NInput v-model:value="importSpace" />
@@ -715,18 +726,25 @@ onMounted(async () => {
         <NFormItem label="Заголовок (необязательно)">
           <NInput v-model:value="importTitle" />
         </NFormItem>
-        <NFormItem label="Файл .docx / .xlsx">
+        <NFormItem label="Файл .docx / .xlsx / .pdf">
           <input
             type="file"
-            accept=".docx,.xlsx"
-            @change="(e) => (importFile = (e.target as HTMLInputElement).files?.[0] ?? null)"
+            accept=".docx,.xlsx,.pdf"
+            @change="
+              (e) => {
+                importError = ''
+                importFile = (e.target as HTMLInputElement).files?.[0] ?? null
+              }
+            "
           />
         </NFormItem>
       </NForm>
       <template #footer>
         <NSpace justify="end">
           <NButton @click="importModalOpen = false">Отмена</NButton>
-          <NButton type="primary" :loading="uploading" @click="submitImportDocx">Импортировать</NButton>
+          <NButton type="primary" :disabled="!importFile" :loading="uploading" @click="submitImportFile">
+            Импортировать
+          </NButton>
         </NSpace>
       </template>
     </NModal>

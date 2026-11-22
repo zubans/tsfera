@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 go build -o /tsfera-server ./cmd/server
 # у каждого агента своя папка (HOME задаёт tsfera при запуске).
 FROM debian:bookworm-slim AS ai-cli
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tzdata curl bash nodejs npm \
+ && apt-get install -y --no-install-recommends ca-certificates tzdata curl bash nodejs npm poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 # Каждый агент ставится отдельно, и сбой одного не роняет сборку: из части регионов недоступны
 # claude.ai и antigravity.google. Что не установилось, видно в логе сборки (ПРЕДУПРЕЖДЕНИЕ) и
@@ -42,7 +42,7 @@ CMD ["tsfera-server"]
 # Облегчённый образ без консольных агентов: TSFERA_BACKEND_TARGET=runtime.
 # Последняя стадия — цель по умолчанию для docker build без --target.
 FROM alpine:3.20 AS runtime
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata poppler-utils
 ENV TZ=Europe/Moscow
 WORKDIR /app
 COPY --from=builder /tsfera-server /usr/local/bin/tsfera-server

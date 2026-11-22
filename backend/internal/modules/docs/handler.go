@@ -52,10 +52,11 @@ func (h *Handler) Mount(r chi.Router) {
 			dr.With(platform.RequirePermission("docs.comment")).Post("/documents/{id}/comments/{commentID}/resolve", h.resolveComment)
 			dr.With(platform.RequirePermission("docs.comment")).Delete("/documents/{id}/comments/{commentID}", h.deleteComment)
 
-			// Вложения, DOCX-импорт и context.md экспорт
+			// Вложения, импорт файлов (.docx/.xlsx/.pdf) и context.md экспорт
 			dr.With(platform.RequirePermission("docs.update")).Post("/documents/{id}/attachments", h.uploadAttachment)
 			dr.With(platform.RequirePermission("docs.view")).Get("/attachments/{attID}/download", h.downloadAttachment)
-			dr.With(platform.RequirePermission("docs.create")).Post("/import-docx", h.importDocx)
+			dr.With(platform.RequirePermission("docs.create")).Post("/import", h.importFile)
+			dr.With(platform.RequirePermission("docs.create")).Post("/import-docx", h.importFile)
 			dr.With(platform.RequirePermission("docs.view")).Get("/context.md", h.exportContext)
 		})
 	})
@@ -416,28 +417,24 @@ func (h *Handler) downloadAttachment(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (h *Handler) importDocx(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) importFile(w http.ResponseWriter, r *http.Request) {
 	ac, _ := platform.AuthFromContext(r.Context())
-	if err := r.ParseMultipartForm(25 << 20); err != nil {
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
 		platform.WriteError(w, h.logger, platform.NewValidation("Ошибка разбора multipart формы", nil))
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		platform.WriteError(w, h.logger, platform.NewValidation("Передайте .docx файл в поле file", nil))
+		platform.WriteError(w, h.logger, platform.NewValidation("Передайте файл (.docx, .xlsx или .pdf) в поле file", nil))
 		return
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, 25<<20))
+	data, err := io.ReadAll(io.LimitReader(file, 50<<20))
 	if err != nil {
 		platform.WriteError(w, h.logger, err)
 		return
 	}
-	title := r.FormValue("title")
-	if title == "" {
-		title = header.Filename
-	}
-	doc, err := h.svc.ImportDocx(r.Context(), ac, r.FormValue("space"), title, r.FormValue("doc_type"), data)
+	doc, err := h.svc.ImportFile(r.Context(), ac, r.FormValue("space"), r.FormValue("title"), r.FormValue("doc_type"), header.Filename, data)
 	if err != nil {
 		platform.WriteError(w, h.logger, err)
 		return
