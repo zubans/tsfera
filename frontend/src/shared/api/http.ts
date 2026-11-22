@@ -41,7 +41,11 @@ export async function requestJSON<T>(url: string, init: RequestInit = {}): Promi
       const e = parsed as { error: string; code?: string; fields?: Record<string, string> }
       throw new ApiError(e.error, resp.status, e.code, e.fields)
     }
-    throw new ApiError(typeof parsed === 'string' && parsed ? parsed : `Ошибка HTTP ${resp.status}`, resp.status)
+    if (resp.status === 413) {
+      throw new ApiError('Файл слишком большой (превышен лимит размера запроса)', resp.status)
+    }
+    const plain = typeof parsed === 'string' && !parsed.trim().startsWith('<') ? parsed : ''
+    throw new ApiError(plain || `Ошибка HTTP ${resp.status}`, resp.status)
   }
 
   return parsed as T
