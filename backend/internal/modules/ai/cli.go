@@ -169,6 +169,10 @@ func (g *Gateway) acquire(ctx context.Context, providerID int64) (func(), error)
 
 func (g *Gateway) cliEnv(p *Provider, home string) []string {
 	env := []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "LANG=C.UTF-8", "TZ=Europe/Moscow"}
+	if g.cliProxy != "" {
+		env = append(env, "HTTPS_PROXY="+g.cliProxy, "HTTP_PROXY="+g.cliProxy, "https_proxy="+g.cliProxy, "http_proxy="+g.cliProxy,
+			"NO_PROXY=localhost,127.0.0.1", "no_proxy=localhost,127.0.0.1")
+	}
 	token := strings.TrimSpace(p.APIKey)
 	switch p.Kind {
 	case ProviderClaudeCLI:

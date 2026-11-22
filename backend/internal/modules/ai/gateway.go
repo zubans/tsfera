@@ -31,9 +31,17 @@ type Gateway struct {
 	logger     *slog.Logger
 	// cliHome — каталог, в котором у каждого консольного агента своя папка входа.
 	cliHome string
-	proc    cliProcess
-	semMu   sync.Mutex
-	sems    map[int64]chan struct{}
+	// cliProxy — прокси только для консольных агентов (их сервисы бывают недоступны из региона сервера).
+	cliProxy string
+	proc     cliProcess
+	semMu    sync.Mutex
+	sems     map[int64]chan struct{}
+}
+
+// SetCLIProxy задаёт прокси для процессов консольных агентов (HTTPS_PROXY и HTTP_PROXY внутри процесса).
+// Остальные HTTP-клиенты tsfera прокси не используют.
+func (g *Gateway) SetCLIProxy(proxyURL string) {
+	g.cliProxy = strings.TrimSpace(proxyURL)
 }
 
 // SetCLIHome задаёт каталог входа консольных агентов (по умолчанию ./data/ai-cli).

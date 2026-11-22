@@ -96,7 +96,9 @@ define AI_CLI_LOGIN
 	@docker compose exec backend sh -c 'command -v $(1) >/dev/null' 2>/dev/null || { \
 		echo "В контейнере backend нет $(1) — пересобираю образ с консольными агентами (первый раз ~10 минут)"; \
 		TSFERA_BACKEND_TARGET=ai-cli docker compose up -d --build backend; }
-	docker compose exec -it $(2) backend sh -c "mkdir -p $(3) && $(4)"
+	@docker compose exec backend sh -c 'command -v $(1) >/dev/null' || { \
+		echo "$(1) не установлен в образе: его сайт недоступен из региона сервера. Задайте TSFERA_AI_PROXY в .env и пересоберите: make build-ai-cli"; exit 1; }
+	docker compose exec -it $(2) backend sh -c 'mkdir -p $(3) && if [ -n "$$TSFERA_AI_PROXY" ]; then export HTTPS_PROXY="$$TSFERA_AI_PROXY" HTTP_PROXY="$$TSFERA_AI_PROXY"; fi && $(4)'
 endef
 
 ## Вход в Claude Code: откройте ссылку из вывода; вместо входа можно указать токен `claude setup-token` в провайдере

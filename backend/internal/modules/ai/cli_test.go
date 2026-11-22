@@ -356,3 +356,23 @@ func TestTaskAssignmentPicksModel(t *testing.T) {
 		t.Fatal("task mapping")
 	}
 }
+
+func TestCLIProxyOnlyForAgents(t *testing.T) {
+	gw, _, proc, _ := cliFixture(t, ProviderCodexCLI, "gpt-5-codex")
+	proc.lines = []string{`{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}`}
+	req := CompletionRequest{Messages: []Message{{Role: "user", Content: "x"}}}
+	if _, err := gw.CompleteChat(context.Background(), nil, req); err != nil {
+		t.Fatal(err)
+	}
+	if envValue(proc.specs[0].Env, "HTTPS_PROXY") != "" {
+		t.Fatal("без настройки прокси не передаётся")
+	}
+	gw.SetCLIProxy("http://proxy.local:3128")
+	if _, err := gw.CompleteChat(context.Background(), nil, req); err != nil {
+		t.Fatal(err)
+	}
+	env := proc.specs[1].Env
+	if envValue(env, "HTTPS_PROXY") != "http://proxy.local:3128" || envValue(env, "http_proxy") != "http://proxy.local:3128" {
+		t.Fatalf("env: %v", env)
+	}
+}
