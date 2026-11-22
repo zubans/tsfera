@@ -1,6 +1,8 @@
 package docs
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -589,12 +591,40 @@ func (s *Service) GetAttachmentForDownload(ctx context.Context, auth *platform.A
 }
 
 func (s *Service) ImportDocx(ctx context.Context, auth *platform.AuthContext, space, title, docType string, data []byte) (*Document, error) {
-	md, err := ConvertDocxToMarkdown(data)
+	return s.ImportFile(ctx, auth, space, title, docType, "document.docx", data)
+}
+
+// ImportFile импортирует документ из .docx, .xlsx или .pdf в Markdown.
+func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, space, title, docType, filename string, data []byte) (*Document, error) {
+	ext := detectImportFormat(filename, data)
+	var (
+		md  string
+		err error
+	)
+	switch ext {
+	case ".docx":
+		md, err = ConvertDocxToMarkdown(data)
+	case ".xlsx":
+		md, err = ExtractXlsxText(data)
+	case ".pdf":
+		md, err = ConvertPdfToMarkdown(ctx, data)
+	default:
+		return nil, platform.NewValidation("Неподдерживаемый формат файла: поддерживаются .docx, .xlsx и .pdf", nil)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(title) == "" {
-		title = "Импортированный документ"
+	if strings.TrimSpace(md) == "" {
+		return nil, platform.NewValidation("Не удалось извлечь текст из файла", nil)
+	}
+
+	resolvedTitle := strings.TrimSpace(title)
+	if resolvedTitle == "" {
+		base := sanitizeFilename(filename)
+		resolvedTitle = strings.TrimSpace(strings.TrimSuffix(base, filepath.Ext(base)))
+	}
+	if resolvedTitle == "" {
+		resolvedTitle = "Импортированный документ"
 	}
 	dt := DocType(docType)
 	if dt == "" {
@@ -603,9 +633,32 @@ func (s *Service) ImportDocx(ctx context.Context, auth *platform.AuthContext, sp
 	return s.CreateDocument(ctx, auth, SaveDocumentInput{
 		Space:   space,
 		DocType: dt,
-		Title:   title,
+		Title:   resolvedTitle,
 		Content: md,
 	})
+}
+
+func detectImportFormat(filename string, data []byte) string {
+	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(filename)))
+	switch ext {
+	case ".docx", ".xlsx", ".pdf":
+		return ext
+	case "":
+		if hasPDFHeader(data) {
+			return ".pdf"
+		}
+		if zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data))); err == nil {
+			for _, f := range zr.File {
+				if f.Name == "word/document.xml" {
+					return ".docx"
+				}
+				if strings.HasPrefix(f.Name, "xl/") {
+					return ".xlsx"
+				}
+			}
+		}
+	}
+	return ext
 }
 
 func (s *Service) ExportContextMarkdown(ctx context.Context, auth *platform.AuthContext, space string, docID int64) (string, error) {

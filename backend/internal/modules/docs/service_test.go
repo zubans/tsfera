@@ -3,11 +3,15 @@ package docs
 import (
 	"archive/zip"
 	"bytes"
+	"compress/zlib"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -539,4 +543,206 @@ func (m *memDocsRepo) SaveDocumentRevision(ctx context.Context, doc *Document, e
 	}
 	rev.DocumentID, rev.Version, rev.Title, rev.Content = doc.ID, doc.Version, doc.Title, doc.Content
 	return m.AddRevision(ctx, rev)
+}
+
+func buildTestPdf(streams []struct {
+	dict     string
+	body     []byte
+	compress bool
+}) []byte {
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.4\n")
+	for idx, s := range streams {
+		data := s.body
+		dict := s.dict
+		if s.compress {
+			var zbuf bytes.Buffer
+			zw := zlib.NewWriter(&zbuf)
+			_, _ = zw.Write(data)
+			_ = zw.Close()
+			data = zbuf.Bytes()
+			dict += " /Filter /FlateDecode"
+		}
+		fmt.Fprintf(&buf, "%d 0 obj\n<< /Length %d %s >>\nstream\n", idx+1, len(data), dict)
+		buf.Write(data)
+		buf.WriteString("\nendstream\nendobj\n")
+	}
+	buf.WriteString("%%EOF\n")
+	return buf.Bytes()
+}
+
+func withNativePdfOnly(t *testing.T) {
+	t.Helper()
+	orig := pdfTextLookPath
+	pdfTextLookPath = func(string) (string, error) {
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() { pdfTextLookPath = orig })
+}
+
+func TestPdfConverterNative(t *testing.T) {
+	withNativePdfOnly(t)
+	ctx := context.Background()
+
+	t.Run("plain and multipage pdf", func(t *testing.T) {
+		pdfBytes := buildTestPdf([]struct {
+			dict     string
+			body     []byte
+			compress bool
+		}{
+			{body: []byte("BT /F1 12 Tf (Boiler manual Baxi) Tj T* [(Pressure: ) -200 (1.5 bar)] TJ ET")},
+			{body: []byte("BT /F1 12 Tf (Page 2 checklist) Tj ET"), compress: true},
+		})
+		md, err := ConvertPdfToMarkdown(ctx, pdfBytes)
+		if err != nil {
+			t.Fatalf("convert pdf failed: %v", err)
+		}
+		if !strings.Contains(md, "Boiler manual Baxi") || !strings.Contains(md, "Pressure:  1.5 bar") && !strings.Contains(md, "Pressure: 1.5 bar") {
+			t.Fatalf("unexpected page 1 text:\n%s", md)
+		}
+		if !strings.Contains(md, "---") || !strings.Contains(md, "Page 2 checklist") {
+			t.Fatalf("expected page separator and page 2 text:\n%s", md)
+		}
+	})
+
+	t.Run("compressed cyrillic with ToUnicode CMap", func(t *testing.T) {
+		// Коды 0001..0005 -> Котёл (U+041A, U+043E, U+0442, U+0451, U+043B)
+		cmap := []byte(`begincmap
+5 beginbfchar
+<0001> <041A>
+<0002> <043E>
+<0003> <0442>
+<0004> <0451>
+<0005> <043B>
+endbfchar
+endcmap`)
+		content := []byte("BT /F1 12 Tf <00010002000300040005> Tj ET")
+		pdfBytes := buildTestPdf([]struct {
+			dict     string
+			body     []byte
+			compress bool
+		}{
+			{body: cmap, compress: true},
+			{body: content, compress: true},
+		})
+		md, err := ConvertPdfToMarkdown(ctx, pdfBytes)
+		if err != nil {
+			t.Fatalf("convert cyrillic pdf failed: %v", err)
+		}
+		if !strings.Contains(md, "Котёл") {
+			t.Fatalf("expected cyrillic word Котёл, got:\n%s", md)
+		}
+	})
+
+	t.Run("scan pdf without text layer", func(t *testing.T) {
+		pdfBytes := buildTestPdf([]struct {
+			dict     string
+			body     []byte
+			compress bool
+		}{
+			{dict: "/Subtype /Image", body: []byte{0xFF, 0xD8, 0xFF, 0xE0}},
+		})
+		_, err := ConvertPdfToMarkdown(ctx, pdfBytes)
+		if !errors.Is(err, platform.ErrValidation) {
+			t.Fatalf("expected ErrValidation for scan pdf, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "OCR") {
+			t.Fatalf("expected OCR hint in error, got %q", err.Error())
+		}
+	})
+
+	t.Run("invalid non-pdf bytes", func(t *testing.T) {
+		if _, err := ConvertPdfToMarkdown(ctx, []byte("not a pdf")); !errors.Is(err, platform.ErrValidation) {
+			t.Fatalf("expected ErrValidation, got %v", err)
+		}
+	})
+}
+
+func TestImportFileHTTPAndPdfAttachment(t *testing.T) {
+	withNativePdfOnly(t)
+	storage := t.TempDir()
+	repo := newMemDocsRepo(time.Now)
+	admin := &platform.AuthContext{UserID: 1, IsSuperAdmin: true}
+	mod := NewModule(repo, staticAuth{ac: admin}, fakeEntityResolver{}, nil, storage, nil)
+
+	r := chi.NewRouter()
+	mod.MountHTTP(r)
+
+	uploadImport := func(endpoint, filename string, payload []byte) *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		fw, _ := mw.CreateFormFile("file", filename)
+		_, _ = fw.Write(payload)
+		_ = mw.WriteField("space", "manuals")
+		_ = mw.WriteField("doc_type", "equipment_manual")
+		_ = mw.Close()
+
+		req := httptest.NewRequest(http.MethodPost, endpoint, &body)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec
+	}
+
+	pdfBytes := buildTestPdf([]struct {
+		dict     string
+		body     []byte
+		compress bool
+	}{
+		{body: []byte("BT /F1 12 Tf (Baxi Eco Four Passport) Tj ET")},
+	})
+
+	xlsxBytes := buildTestZip(map[string]string{
+		"xl/sharedStrings.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <si><t>Услуга</t></si>
+  <si><t>ТО котла</t></si>
+</sst>`,
+		"xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row><c t="s"><v>0</v></c><c><v>Цена</v></c></row>
+    <row><c t="s"><v>1</v></c><c><v>6500</v></c></row>
+  </sheetData>
+</worksheet>`,
+	})
+
+	// Импорт PDF через /api/v1/docs/import.
+	recPdf := uploadImport("/api/v1/docs/import", "Паспорт Baxi.pdf", pdfBytes)
+	if recPdf.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for pdf import, got %d: %s", recPdf.Code, recPdf.Body.String())
+	}
+	var pdfDoc Document
+	if err := json.Unmarshal(recPdf.Body.Bytes(), &pdfDoc); err != nil {
+		t.Fatalf("decode pdf doc: %v", err)
+	}
+	if pdfDoc.Title != "Паспорт Baxi" || !strings.Contains(pdfDoc.Content, "Baxi Eco Four Passport") {
+		t.Fatalf("unexpected imported pdf doc: title=%q content=%q", pdfDoc.Title, pdfDoc.Content)
+	}
+
+	// Импорт XLSX через обратный алиас /api/v1/docs/import-docx.
+	recXlsx := uploadImport("/api/v1/docs/import-docx", "Прайс.xlsx", xlsxBytes)
+	if recXlsx.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for xlsx import, got %d: %s", recXlsx.Code, recXlsx.Body.String())
+	}
+	var xlsxDoc Document
+	_ = json.Unmarshal(recXlsx.Body.Bytes(), &xlsxDoc)
+	if xlsxDoc.Title != "Прайс" || !strings.Contains(xlsxDoc.Content, "| --- | --- |") || !strings.Contains(xlsxDoc.Content, "| ТО котла | 6500 |") {
+		t.Fatalf("unexpected imported xlsx doc: title=%q content=%q", xlsxDoc.Title, xlsxDoc.Content)
+	}
+
+	// Неподдерживаемый формат -> 422 / 400.
+	recBad := uploadImport("/api/v1/docs/import", "notes.txt", []byte("plain text"))
+	if recBad.Code != http.StatusUnprocessableEntity && recBad.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400/422 for unsupported format, got %d: %s", recBad.Code, recBad.Body.String())
+	}
+
+	// PDF-вложение извлекает текст для поиска и context.md.
+	att, err := mod.Service.SaveAttachment(context.Background(), admin, pdfDoc.ID, "scheme.pdf", "application/pdf", pdfBytes)
+	if err != nil {
+		t.Fatalf("save pdf attachment: %v", err)
+	}
+	if !strings.Contains(att.ExtractedText, "Baxi Eco Four Passport") {
+		t.Fatalf("expected extracted text in pdf attachment, got %q", att.ExtractedText)
+	}
 }
