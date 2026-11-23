@@ -688,8 +688,9 @@ func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, sp
 		return nil, err
 	}
 
+	var byPage map[int][]Attachment
 	if pdfResult != nil && len(pdfResult.Schematics) > 0 {
-		byPage := make(map[int][]Attachment, len(pdfResult.Schematics))
+		byPage = make(map[int][]Attachment, len(pdfResult.Schematics))
 		savedAtts := make([]Attachment, 0, len(pdfResult.Schematics))
 		for _, sch := range pdfResult.Schematics {
 			att, saveErr := s.saveAttachmentWithMeta(
@@ -728,6 +729,10 @@ func (s *Service) ImportFile(ctx context.Context, auth *platform.AuthContext, sp
 			}
 			doc.Attachments = savedAtts
 		}
+	}
+
+	if pdfResult != nil {
+		s.indexBoilerBlueprintFromPages(ctx, auth, doc, filename, pdfResult.Pages, byPage)
 	}
 	return doc, nil
 }

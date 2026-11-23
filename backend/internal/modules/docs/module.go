@@ -251,6 +251,141 @@ func (m *Module) Tools() []platform.ToolDefinition {
 			},
 		},
 		{
+			Name:        "docs_search_boiler_parts",
+			Description: "Поиск запчастей, артикулов (Material No.), позиций на взрыв-схемах и замен артикулов по проиндексированным чертежам котлов. Используй для любых вопросов о запчастях, узлах, артикулах и комплектности конкретного котла.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"brand":       map[string]any{"type": "string", "description": "Производитель котла (например: Vaillant, Kentatsu, BAXI, Protherm)"},
+					"model":       map[string]any{"type": "string", "description": "Модель котла (например: VK INT 246, VK 36/4-1 XE, VSC 266/4-5 200)"},
+					"part_number": map[string]any{"type": "string", "description": "Артикул / Material No. запчасти или старый артикул для поиска замены"},
+					"assembly":    map[string]any{"type": "string", "description": "Узел котла (например: Горелка, Теплообменник, Гидравлические части, Блок электроники)"},
+					"query":       map[string]any{"type": "string", "description": "Название запчасти или ключевые слова (например: газовая арматура, электрод, датчик давления, насос, NTC)"},
+					"limit":       map[string]any{"type": "integer"},
+				},
+			},
+			Execute: func(ctx context.Context, auth *platform.AuthContext, args json.RawMessage) (platform.ToolResult, error) {
+				var in struct {
+					Brand      string `json:"brand"`
+					Model      string `json:"model"`
+					PartNumber string `json:"part_number"`
+					Assembly   string `json:"assembly"`
+					Query      string `json:"query"`
+					Limit      int    `json:"limit"`
+				}
+				_ = json.Unmarshal(args, &in)
+				if in.Limit <= 0 || in.Limit > 50 {
+					in.Limit = 25
+				}
+				items, err := m.Service.SearchBoilerParts(ctx, auth, BoilerPartFilter{
+					Brand:      in.Brand,
+					Model:      in.Model,
+					PartNumber: in.PartNumber,
+					Assembly:   in.Assembly,
+					Query:      in.Query,
+					Limit:      in.Limit,
+				})
+				if err != nil {
+					return platform.ToolResult{}, err
+				}
+				if len(items) == 0 {
+					return platform.ToolResult{Content: "Запчасти в проиндексированных чертежах котлов по указанным параметрам не найдены."}, nil
+				}
+				var b strings.Builder
+				seenDocs := map[int64]bool{}
+				var refs []platform.SourceRef
+				for _, p := range items {
+					b.WriteString("- ")
+					b.WriteString(FormatBoilerPartLine(p))
+					b.WriteByte('\n')
+					if !seenDocs[p.DocumentID] {
+						seenDocs[p.DocumentID] = true
+						refs = append(refs, platform.SourceRef{
+							SourceType: "doc",
+							SourceID:   strconv.FormatInt(p.DocumentID, 10),
+							Title:      p.DocumentTitle,
+							Path:       fmt.Sprintf("/docs/%d", p.DocumentID),
+						})
+					}
+				}
+				return platform.ToolResult{Content: b.String(), Sources: refs}, nil
+			},
+		},
+		{
+			Name:        "docs_diagnose_boiler",
+			Description: "Диагностика неисправности котла по проиндексированным чертежам и документации: находит релевантные документы котла, связанные с симптомом/ошибкой узлы, артикулы запчастей (с позициями и заменами) и вложения-схемы для визуальной проверки.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"brand":   map[string]any{"type": "string", "description": "Производитель котла (необязательно)"},
+					"model":   map[string]any{"type": "string", "description": "Модель котла (например: VK INT 246, NOBBY SMART)"},
+					"symptom": map[string]any{"type": "string", "description": "Описание неисправности, симптом или код ошибки (например: не разжигается, F.28, падает давление, перегрев)"},
+				},
+				"required": []string{"symptom"},
+			},
+			Execute: func(ctx context.Context, auth *platform.AuthContext, args json.RawMessage) (platform.ToolResult, error) {
+				var in struct {
+					Brand   string `json:"brand"`
+					Model   string `json:"model"`
+					Symptom string `json:"symptom"`
+				}
+				_ = json.Unmarshal(args, &in)
+				diag, err := m.Service.DiagnoseBoiler(ctx, auth, in.Brand, in.Model, in.Symptom)
+				if err != nil {
+					return platform.ToolResult{}, err
+				}
+				var b strings.Builder
+				var refs []platform.SourceRef
+				seenDocs := map[int64]bool{}
+
+				if len(diag.MatchedDocs) > 0 {
+					b.WriteString("## Документы по котлу\n")
+					for _, d := range diag.MatchedDocs {
+						fmt.Fprintf(&b, "- [%s] %s (id=%d, space=%s)\n", d.DocType, d.Title, d.ID, d.Space)
+						if !seenDocs[d.ID] {
+							seenDocs[d.ID] = true
+							refs = append(refs, platform.SourceRef{
+								SourceType: "doc",
+								SourceID:   strconv.FormatInt(d.ID, 10),
+								Title:      d.Title,
+								Path:       fmt.Sprintf("/docs/%d", d.ID),
+							})
+						}
+					}
+					b.WriteByte('\n')
+				}
+				if len(diag.RelatedParts) > 0 {
+					b.WriteString("## Связанные узлы и запчасти из чертежей\n")
+					for _, p := range diag.RelatedParts {
+						b.WriteString("- ")
+						b.WriteString(FormatBoilerPartLine(p))
+						b.WriteByte('\n')
+						if !seenDocs[p.DocumentID] {
+							seenDocs[p.DocumentID] = true
+							refs = append(refs, platform.SourceRef{
+								SourceType: "doc",
+								SourceID:   strconv.FormatInt(p.DocumentID, 10),
+								Title:      p.DocumentTitle,
+								Path:       fmt.Sprintf("/docs/%d", p.DocumentID),
+							})
+						}
+					}
+					b.WriteByte('\n')
+				}
+				if len(diag.Schematics) > 0 {
+					b.WriteString("## Взрыв-схемы и чертежи для визуальной проверки (docs_inspect_schematic)\n")
+					for _, a := range diag.Schematics {
+						fmt.Fprintf(&b, "- attachment_id=%d | документ #%d | файл=%s | стр.=%d | анализ=%s\n",
+							a.ID, a.DocumentID, a.Filename, a.PageNumber, a.AnalysisStatus)
+					}
+				}
+				if b.Len() == 0 {
+					return platform.ToolResult{Content: "По указанному котлу и неисправности не найдено проиндексированных чертежей и документов."}, nil
+				}
+				return platform.ToolResult{Content: b.String(), Sources: refs}, nil
+			},
+		},
+		{
 			Name:        "docs_get_by_entity",
 			Description: "Найти все документы и инструкции, привязанные к сущности CRM (contractor, equipment, application, contract, task).",
 			Parameters: map[string]any{
@@ -390,6 +525,7 @@ func (m *Module) SearchSources() []platform.IndexSource {
 	return []platform.IndexSource{
 		&docIndexSource{repo: m.repo},
 		&attachmentIndexSource{repo: m.repo},
+		&boilerPartsIndexSource{repo: m.repo},
 	}
 }
 
@@ -474,6 +610,86 @@ func (s *attachmentIndexSource) ListForIndex(ctx context.Context, _ *time.Time) 
 }
 
 func (s *attachmentIndexSource) CanView(ctx context.Context, auth *platform.AuthContext, _ string, meta map[string]string) (bool, error) {
+	docID, err := strconv.ParseInt(meta["document_id"], 10, 64)
+	if err != nil {
+		return false, nil
+	}
+	doc, err := s.repo.GetDocument(ctx, docID)
+	if err != nil {
+		return false, err
+	}
+	return CanViewDocument(auth, doc), nil
+}
+
+// boilerPartsIndexSource индексирует структурированные спецификации запчастей из чертежей котлов в единый ИИ-поиск.
+type boilerPartsIndexSource struct {
+	repo Repository
+}
+
+func (s *boilerPartsIndexSource) SourceType() string { return "boiler_parts" }
+
+func (s *boilerPartsIndexSource) ListForIndex(ctx context.Context, _ *time.Time) ([]platform.IndexItem, error) {
+	parts, err := s.repo.ListAllBoilerParts(ctx, 5000)
+	if err != nil {
+		return nil, err
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	// Группируем запчасти по (document_id, assembly), чтобы каждый узел котла стал компактным и точным чанком поиска.
+	type groupKey struct {
+		docID    int64
+		assembly string
+	}
+	order := make([]groupKey, 0)
+	groups := map[groupKey][]BoilerPart{}
+	for _, p := range parts {
+		k := groupKey{docID: p.DocumentID, assembly: p.Assembly}
+		if _, exists := groups[k]; !exists {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], p)
+	}
+
+	out := make([]platform.IndexItem, 0, len(order))
+	for _, k := range order {
+		items := groups[k]
+		first := items[0]
+		var b strings.Builder
+		title := fmt.Sprintf("Запчасти %s %s", first.Brand, first.BoilerModel)
+		title = strings.TrimSpace(title)
+		if first.Assembly != "" {
+			title += " — " + first.Assembly
+		}
+		fmt.Fprintf(&b, "# %s\nДокумент #%d «%s»\n\n", title, first.DocumentID, first.DocumentTitle)
+		var updatedAt time.Time
+		for _, p := range items {
+			b.WriteString("- ")
+			b.WriteString(FormatBoilerPartLine(p))
+			b.WriteByte('\n')
+			if p.CreatedAt.After(updatedAt) {
+				updatedAt = p.CreatedAt
+			}
+		}
+		out = append(out, platform.IndexItem{
+			SourceType: "boiler_parts",
+			SourceID:   fmt.Sprintf("%d:%s", first.DocumentID, first.Assembly),
+			Title:      title,
+			Content:    b.String(),
+			Path:       fmt.Sprintf("/docs/%d", first.DocumentID),
+			Metadata: map[string]string{
+				"document_id":  strconv.FormatInt(first.DocumentID, 10),
+				"brand":        first.Brand,
+				"boiler_model": first.BoilerModel,
+				"assembly":     first.Assembly,
+			},
+			UpdatedAt: updatedAt,
+		})
+	}
+	return out, nil
+}
+
+func (s *boilerPartsIndexSource) CanView(ctx context.Context, auth *platform.AuthContext, _ string, meta map[string]string) (bool, error) {
 	docID, err := strconv.ParseInt(meta["document_id"], 10, 64)
 	if err != nil {
 		return false, nil

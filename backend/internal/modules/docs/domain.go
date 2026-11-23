@@ -123,3 +123,33 @@ type SpaceSummary struct {
 	Space string `json:"space"`
 	Count int    `json:"count"`
 }
+
+// BoilerPart — структурированная позиция запчасти, извлечённая из чертежа / взрыв-схемы котла.
+type BoilerPart struct {
+	ID                  int64     `json:"id"`
+	DocumentID          int64     `json:"document_id"`
+	DocumentTitle       string    `json:"document_title,omitempty"`
+	Brand               string    `json:"brand"`
+	BoilerModel         string    `json:"boiler_model"`
+	Assembly            string    `json:"assembly"`
+	Position            string    `json:"position"`
+	PartNumber          string    `json:"part_number"`
+	Name                string    `json:"name"`
+	Notes               string    `json:"notes,omitempty"`
+	ReplacedBy          string    `json:"replaced_by,omitempty"`
+	PageNumber          int       `json:"page_number,omitempty"`
+	DiagramPage         int       `json:"diagram_page,omitempty"`
+	DiagramAttachmentID int64     `json:"diagram_attachment_id,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+// BoilerPartFilter — параметры поиска запчастей по проиндексированным чертежам котлов.
+type BoilerPartFilter struct {
+	DocumentID int64
+	Brand      string
+	Model      string
+	PartNumber string
+	Assembly   string
+	Query      string
+	Limit      int
+}
