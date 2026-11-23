@@ -426,6 +426,14 @@ onMounted(() => {
   border-radius: 10px;
   background: #fff;
   border: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+.msg-bubble :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 6px 0;
 }
 .msg-bubble.user {
   align-self: flex-end;
