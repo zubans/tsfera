@@ -59,6 +59,10 @@ func (h *Handler) Mount(r chi.Router) {
 			dr.With(platform.RequirePermission("docs.create")).Post("/import", h.importFile)
 			dr.With(platform.RequirePermission("docs.create")).Post("/import-docx", h.importFile)
 			dr.With(platform.RequirePermission("docs.view")).Get("/context.md", h.exportContext)
+
+			// Индекс запчастей и спецификаций из чертежей котлов
+			dr.With(platform.RequirePermission("docs.view")).Get("/boiler-parts", h.searchBoilerParts)
+			dr.With(platform.RequirePermission("docs.view")).Get("/documents/{id}/boiler-parts", h.listDocumentBoilerParts)
 		})
 	})
 }
@@ -458,6 +462,41 @@ func (h *Handler) exportContext(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(md))
+}
+
+func (h *Handler) searchBoilerParts(w http.ResponseWriter, r *http.Request) {
+	ac, _ := platform.AuthFromContext(r.Context())
+	docID, _ := strconv.ParseInt(r.URL.Query().Get("document_id"), 10, 64)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := h.svc.SearchBoilerParts(r.Context(), ac, BoilerPartFilter{
+		DocumentID: docID,
+		Brand:      r.URL.Query().Get("brand"),
+		Model:      r.URL.Query().Get("model"),
+		PartNumber: r.URL.Query().Get("part_number"),
+		Assembly:   r.URL.Query().Get("assembly"),
+		Query:      r.URL.Query().Get("q"),
+		Limit:      limit,
+	})
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	platform.WriteJSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) listDocumentBoilerParts(w http.ResponseWriter, r *http.Request) {
+	ac, _ := platform.AuthFromContext(r.Context())
+	docID, err := parseID(r, "id")
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	items, err := h.svc.ListDocumentBoilerParts(r.Context(), ac, docID)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	platform.WriteJSON(w, http.StatusOK, items)
 }
 
 func requestAuth(r *http.Request) *platform.AuthContext {

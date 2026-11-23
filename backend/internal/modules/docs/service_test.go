@@ -30,6 +30,7 @@ type memDocsRepo struct {
 	links   map[int64]*EntityLink
 	cmts    map[int64]*DocComment
 	atts    map[int64]*Attachment
+	parts   map[int64]*BoilerPart
 	nowFunc func() time.Time
 }
 
@@ -40,6 +41,7 @@ func newMemDocsRepo(clock func() time.Time) *memDocsRepo {
 		links:   map[int64]*EntityLink{},
 		cmts:    map[int64]*DocComment{},
 		atts:    map[int64]*Attachment{},
+		parts:   map[int64]*BoilerPart{},
 		nowFunc: clock,
 	}
 }
@@ -352,6 +354,95 @@ func (m *memDocsRepo) DeleteAttachment(_ context.Context, id int64) error {
 	defer m.mu.Unlock()
 	delete(m.atts, id)
 	return nil
+}
+
+func (m *memDocsRepo) ReplaceBoilerParts(_ context.Context, documentID int64, parts []BoilerPart) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, p := range m.parts {
+		if p.DocumentID == documentID {
+			delete(m.parts, id)
+		}
+	}
+	for i := range parts {
+		cp := parts[i]
+		cp.ID = m.id()
+		cp.DocumentID = documentID
+		cp.CreatedAt = m.nowFunc()
+		if d, ok := m.docs[documentID]; ok {
+			cp.DocumentTitle = d.Title
+		}
+		m.parts[cp.ID] = &cp
+		parts[i] = cp
+	}
+	return nil
+}
+
+func (m *memDocsRepo) ListBoilerPartsByDocument(_ context.Context, documentID int64) ([]BoilerPart, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []BoilerPart
+	for _, p := range m.parts {
+		if p.DocumentID == documentID {
+			cp := *p
+			if d, ok := m.docs[p.DocumentID]; ok {
+				cp.DocumentTitle = d.Title
+			}
+			out = append(out, cp)
+		}
+	}
+	return out, nil
+}
+
+func (m *memDocsRepo) SearchBoilerParts(_ context.Context, f BoilerPartFilter) ([]BoilerPart, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []BoilerPart
+	for _, p := range m.parts {
+		d, ok := m.docs[p.DocumentID]
+		if !ok || d.Deleted {
+			continue
+		}
+		if f.DocumentID > 0 && p.DocumentID != f.DocumentID {
+			continue
+		}
+		if f.Brand != "" && !strings.Contains(strings.ToLower(p.Brand), strings.ToLower(f.Brand)) {
+			continue
+		}
+		if f.Model != "" && !strings.Contains(strings.ToLower(p.BoilerModel+" "+d.Title), strings.ToLower(normalizeBlueprintText(f.Model))) {
+			continue
+		}
+		if f.PartNumber != "" && !strings.Contains(strings.ToLower(p.PartNumber+" "+p.ReplacedBy), strings.ToLower(f.PartNumber)) {
+			continue
+		}
+		if f.Assembly != "" && !strings.Contains(strings.ToLower(p.Assembly), strings.ToLower(f.Assembly)) {
+			continue
+		}
+		if f.Query != "" {
+			hay := strings.ToLower(p.Brand + " " + p.BoilerModel + " " + p.Assembly + " " + p.PartNumber + " " + p.Name + " " + p.Notes + " " + p.ReplacedBy)
+			matched := true
+			for _, tok := range strings.Fields(strings.ToLower(normalizeBlueprintText(f.Query))) {
+				if !strings.Contains(hay, tok) {
+					matched = false
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+		cp := *p
+		cp.DocumentTitle = d.Title
+		out = append(out, cp)
+		if f.Limit > 0 && len(out) >= f.Limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *memDocsRepo) ListAllBoilerParts(_ context.Context, limit int) ([]BoilerPart, error) {
+	return m.SearchBoilerParts(context.Background(), BoilerPartFilter{Limit: limit})
 }
 
 type fakeEntityResolver struct{}

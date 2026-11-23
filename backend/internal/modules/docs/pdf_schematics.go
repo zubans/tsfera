@@ -17,7 +17,7 @@ import (
 
 const (
 	pdfSchematicRenderDPI   = 250
-	pdfSchematicMaxPages    = 20
+	pdfSchematicMaxPages    = 30
 	pdfScanMaxPages         = 10
 	pdfSchematicRenderLimit = 90 * time.Second
 	pdfMaxImageSizeBytes    = 15 << 20
@@ -239,7 +239,11 @@ func extractPdfSchematicPages(ctx context.Context, data []byte, pages []string, 
 	} else {
 		for idx, text := range pages {
 			pageNum := idx + 1
-			if isSchematicPageText(text) {
+			nextText := ""
+			if idx+1 < len(pages) {
+				nextText = pages[idx+1]
+			}
+			if isSchematicPageText(text) || isBlueprintDiagramPage(text, nextText) {
 				candidateSet[pageNum] = true
 				continue
 			}

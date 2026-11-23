@@ -50,4 +50,9 @@ type Repository interface {
 	AddAttachment(ctx context.Context, att *Attachment) error
 	UpdateAttachmentAnalysis(ctx context.Context, id int64, status, extractedText, errText string, analyzedAt *time.Time) error
 	DeleteAttachment(ctx context.Context, id int64) error
+
+	ReplaceBoilerParts(ctx context.Context, documentID int64, parts []BoilerPart) error
+	ListBoilerPartsByDocument(ctx context.Context, documentID int64) ([]BoilerPart, error)
+	SearchBoilerParts(ctx context.Context, f BoilerPartFilter) ([]BoilerPart, error)
+	ListAllBoilerParts(ctx context.Context, limit int) ([]BoilerPart, error)
 }

@@ -602,3 +602,194 @@ func (r *PgRepository) SaveDocumentRevision(ctx context.Context, doc *Document, 
 	*doc, *rev = saved, revision
 	return nil
 }
+
+// --- Boiler Parts (структурированный индекс запчастей из чертежей котлов) ---
+
+func (r *PgRepository) ReplaceBoilerParts(ctx context.Context, documentID int64, parts []BoilerPart) error {
+	execWith := func(q platform.Querier) error {
+		if _, err := q.Exec(ctx, `DELETE FROM docs_boiler_parts WHERE document_id = $1`, documentID); err != nil {
+			return err
+		}
+		for i := range parts {
+			p := &parts[i]
+			p.DocumentID = documentID
+			err := q.QueryRow(ctx, `
+				INSERT INTO docs_boiler_parts (
+					document_id, brand, boiler_model, assembly, position,
+					part_number, name, notes, replaced_by,
+					page_number, diagram_page, diagram_attachment_id
+				)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+				RETURNING id, created_at
+			`, p.DocumentID, p.Brand, p.BoilerModel, p.Assembly, p.Position,
+				p.PartNumber, p.Name, p.Notes, p.ReplacedBy,
+				p.PageNumber, p.DiagramPage, p.DiagramAttachmentID).
+				Scan(&p.ID, &p.CreatedAt)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if db, ok := r.db.(interface {
+		Begin(context.Context) (pgx.Tx, error)
+	}); ok {
+		tx, err := db.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(context.WithoutCancel(ctx))
+		if err := execWith(tx); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+	return execWith(r.db)
+}
+
+func scanBoilerPart(rows pgx.Rows) (BoilerPart, error) {
+	var p BoilerPart
+	err := rows.Scan(
+		&p.ID, &p.DocumentID, &p.DocumentTitle,
+		&p.Brand, &p.BoilerModel, &p.Assembly, &p.Position,
+		&p.PartNumber, &p.Name, &p.Notes, &p.ReplacedBy,
+		&p.PageNumber, &p.DiagramPage, &p.DiagramAttachmentID, &p.CreatedAt,
+	)
+	return p, err
+}
+
+func (r *PgRepository) ListBoilerPartsByDocument(ctx context.Context, documentID int64) ([]BoilerPart, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT bp.id, bp.document_id, d.title,
+		       bp.brand, bp.boiler_model, bp.assembly, bp.position,
+		       bp.part_number, bp.name, bp.notes, bp.replaced_by,
+		       bp.page_number, bp.diagram_page, bp.diagram_attachment_id, bp.created_at
+		FROM docs_boiler_parts bp
+		JOIN docs_documents d ON d.id = bp.document_id
+		WHERE bp.document_id = $1 AND d.deleted = FALSE
+		ORDER BY bp.page_number ASC, bp.id ASC
+	`, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BoilerPart
+	for rows.Next() {
+		p, err := scanBoilerPart(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *PgRepository) SearchBoilerParts(ctx context.Context, f BoilerPartFilter) ([]BoilerPart, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 30
+	}
+	where := []string{"d.deleted = FALSE", "d.archived_at IS NULL"}
+	args := []any{}
+	idx := 1
+
+	if f.DocumentID > 0 {
+		where = append(where, fmt.Sprintf("bp.document_id = $%d", idx))
+		args = append(args, f.DocumentID)
+		idx++
+	}
+	if s := strings.TrimSpace(f.Brand); s != "" {
+		where = append(where, fmt.Sprintf("bp.brand ILIKE '%%' || $%d || '%%'", idx))
+		args = append(args, s)
+		idx++
+	}
+	if s := strings.TrimSpace(f.Model); s != "" {
+		where = append(where, fmt.Sprintf("(bp.boiler_model ILIKE '%%' || $%d || '%%' OR d.title ILIKE '%%' || $%d || '%%')", idx, idx))
+		args = append(args, normalizeBlueprintText(s))
+		idx++
+	}
+	if s := strings.TrimSpace(f.PartNumber); s != "" {
+		where = append(where, fmt.Sprintf("(bp.part_number ILIKE '%%' || $%d || '%%' OR bp.replaced_by ILIKE '%%' || $%d || '%%')", idx, idx))
+		args = append(args, s)
+		idx++
+	}
+	if s := strings.TrimSpace(f.Assembly); s != "" {
+		where = append(where, fmt.Sprintf("bp.assembly ILIKE '%%' || $%d || '%%'", idx))
+		args = append(args, s)
+		idx++
+	}
+	if q := strings.TrimSpace(f.Query); q != "" {
+		normQ := normalizeBlueprintText(q)
+		where = append(where, fmt.Sprintf(`(
+			to_tsvector('russian', bp.brand || ' ' || bp.boiler_model || ' ' || bp.assembly || ' ' || bp.part_number || ' ' || bp.name || ' ' || bp.notes || ' ' || bp.replaced_by)
+			@@ plainto_tsquery('russian', $%d)
+			OR bp.part_number ILIKE '%%' || $%d || '%%'
+			OR bp.replaced_by ILIKE '%%' || $%d || '%%'
+			OR bp.name ILIKE '%%' || $%d || '%%'
+			OR bp.notes ILIKE '%%' || $%d || '%%'
+			OR bp.assembly ILIKE '%%' || $%d || '%%'
+			OR bp.boiler_model ILIKE '%%' || $%d || '%%'
+		)`, idx, idx, idx, idx, idx, idx, idx))
+		args = append(args, normQ)
+		idx++
+	}
+
+	args = append(args, limit)
+	querySQL := fmt.Sprintf(`
+		SELECT bp.id, bp.document_id, d.title,
+		       bp.brand, bp.boiler_model, bp.assembly, bp.position,
+		       bp.part_number, bp.name, bp.notes, bp.replaced_by,
+		       bp.page_number, bp.diagram_page, bp.diagram_attachment_id, bp.created_at
+		FROM docs_boiler_parts bp
+		JOIN docs_documents d ON d.id = bp.document_id
+		WHERE %s
+		ORDER BY bp.document_id DESC, bp.page_number ASC, bp.id ASC
+		LIMIT $%d
+	`, strings.Join(where, " AND "), idx)
+
+	rows, err := r.db.Query(ctx, querySQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BoilerPart
+	for rows.Next() {
+		p, err := scanBoilerPart(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *PgRepository) ListAllBoilerParts(ctx context.Context, limit int) ([]BoilerPart, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 2000
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT bp.id, bp.document_id, d.title,
+		       bp.brand, bp.boiler_model, bp.assembly, bp.position,
+		       bp.part_number, bp.name, bp.notes, bp.replaced_by,
+		       bp.page_number, bp.diagram_page, bp.diagram_attachment_id, bp.created_at
+		FROM docs_boiler_parts bp
+		JOIN docs_documents d ON d.id = bp.document_id
+		WHERE d.deleted = FALSE AND d.archived_at IS NULL
+		ORDER BY bp.document_id DESC, bp.page_number ASC, bp.id ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BoilerPart
+	for rows.Next() {
+		p, err := scanBoilerPart(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
