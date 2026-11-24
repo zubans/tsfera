@@ -99,6 +99,8 @@ const lightboxSrc = ref('')
 const lightboxTitle = ref('')
 const lightboxZoom = ref(100)
 const lightboxFit = ref(true)
+const catalogCollapsed = ref(false)
+const sidebarOpen = ref(true)
 
 function openImageLightbox(src: string, title = 'Изображение') {
   lightboxSrc.value = src
@@ -508,7 +510,16 @@ onMounted(async () => {
     </div>
 
     <NLayout has-sider class="docs-shell">
-    <NLayoutSider bordered :width="300" style="background: #ffffff; padding: 12px">
+    <NLayoutSider
+      v-model:collapsed="catalogCollapsed"
+      bordered
+      collapse-mode="width"
+      :collapsed-width="0"
+      :width="250"
+      show-trigger="bar"
+      content-style="padding: 12px;"
+      style="background: #ffffff"
+    >
       <NSpace vertical :size="10">
         <NSpace justify="space-between">
           <strong>База знаний</strong>
@@ -587,7 +598,7 @@ onMounted(async () => {
       </NSpace>
     </NLayoutSider>
 
-    <NLayoutContent style="padding: 16px; background: #f8fafc">
+    <NLayoutContent content-style="padding: 16px; background: #f8fafc; min-width: 0">
       <NAlert v-if="errorMsg" type="error" closable style="margin-bottom: 12px" @close="errorMsg = ''">
         {{ errorMsg }}
       </NAlert>
@@ -603,10 +614,10 @@ onMounted(async () => {
         </NButton>
       </NAlert>
 
-      <div v-if="currentDoc" class="doc-workspace">
+      <div v-if="currentDoc" class="doc-workspace" :class="{ 'no-sidebar': !sidebarOpen }">
         <div class="doc-main">
           <div class="doc-header">
-            <div>
+            <div class="doc-header-title">
               <h2 style="margin: 0 0 6px">{{ currentDoc.title }}</h2>
               <NSpace :size="6">
                 <NTag size="small" type="info">{{ currentDoc.space }}</NTag>
@@ -616,8 +627,8 @@ onMounted(async () => {
                 <NTag v-for="t in currentDoc.tags" :key="t" size="tiny">#{{ t }}</NTag>
               </NSpace>
             </div>
-            <NSpace>
-              <NButton v-if="!editing && auth.hasPerm('docs.update')" secondary @click="startEditing">
+            <NSpace :size="6" wrap>
+              <NButton v-if="!editing && auth.hasPerm('docs.update')" size="small" secondary @click="startEditing">
                 Редактировать
               </NButton>
               <a
@@ -625,18 +636,23 @@ onMounted(async () => {
                 target="_blank"
                 style="text-decoration: none"
               >
-                <NButton secondary>context.md</NButton>
+                <NButton size="small" secondary>context.md</NButton>
               </a>
               <NButton
                 v-if="auth.hasPerm('chat.use')"
+                size="small"
                 type="info"
                 secondary
                 @click="discussWithAI"
               >
                 Обсудить с ИИ
               </NButton>
+              <NButton size="small" tertiary @click="sidebarOpen = !sidebarOpen">
+                {{ sidebarOpen ? 'Скрыть панель' : 'Панель' }}
+              </NButton>
               <NButton
                 v-if="auth.hasPerm('docs.delete')"
+                size="small"
                 type="error"
                 ghost
                 @click="deleteCurrentDocument"
@@ -708,7 +724,7 @@ onMounted(async () => {
           </NCard>
         </div>
 
-        <div class="doc-sidebar">
+        <div v-if="sidebarOpen" class="doc-sidebar">
           <NCard size="small">
             <NTabs type="line" size="small">
               <NTabPane name="comments" :tab="`Комментарии (${comments.length})`">
@@ -986,6 +1002,8 @@ onMounted(async () => {
 <style scoped>
 .docs-drop-host {
   position: relative;
+  width: 100%;
+  min-width: 0;
 }
 .workspace-drop-overlay {
   position: absolute;
@@ -1078,14 +1096,27 @@ onMounted(async () => {
 }
 .doc-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr) 290px;
   gap: 16px;
+  align-items: start;
+}
+.doc-workspace.no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+.doc-main,
+.doc-sidebar {
+  min-width: 0;
 }
 .doc-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+.doc-header-title {
+  min-width: 0;
+  flex: 1 1 260px;
 }
 .outline-box {
   background: #f8fafc;
@@ -1103,6 +1134,9 @@ onMounted(async () => {
 }
 .markdown-body {
   overflow-x: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.55;
 }
 .markdown-body :deep(img) {
   display: block;
@@ -1193,9 +1227,9 @@ onMounted(async () => {
   max-height: 220px;
   overflow: auto;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1380px) {
   .doc-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
