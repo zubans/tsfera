@@ -133,6 +133,33 @@ func cleanPdfPage(p string) string {
 	return strings.Join(clean, "\n")
 }
 
+var rePdfDotLeader = regexp.MustCompile(`\.{6,}`)
+
+// sanitizePdfPageForMarkdown убирает ведущие пробелы (чтобы отступы pdftotext -layout
+// не превращались в Markdown-блоки кода <pre> с чёрным фоном) и сжимает длинные цепочки точек оглавления.
+func sanitizePdfPageForMarkdown(p string) string {
+	lines := strings.Split(p, "\n")
+	out := make([]string, 0, len(lines))
+	blankRun := 0
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			blankRun++
+			if blankRun <= 1 && len(out) > 0 {
+				out = append(out, "")
+			}
+			continue
+		}
+		blankRun = 0
+		t = rePdfDotLeader.ReplaceAllString(t, " … ")
+		out = append(out, t)
+	}
+	for len(out) > 0 && out[len(out)-1] == "" {
+		out = out[:len(out)-1]
+	}
+	return strings.Join(out, "\n")
+}
+
 func formatPdfTextAsMarkdown(raw string) string {
 	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
@@ -140,7 +167,7 @@ func formatPdfTextAsMarkdown(raw string) string {
 	rawPages := strings.Split(normalized, "\f")
 	pages := make([]string, 0, len(rawPages))
 	for _, p := range rawPages {
-		if cleaned := cleanPdfPage(p); cleaned != "" {
+		if cleaned := sanitizePdfPageForMarkdown(cleanPdfPage(p)); cleaned != "" {
 			pages = append(pages, cleaned)
 		}
 	}

@@ -373,8 +373,10 @@ func buildPdfMarkdownWithSchematics(pages []string, schematicsByPage map[int][]A
 	blocks := make([]string, 0, maxPage)
 	for p := 1; p <= maxPage; p++ {
 		var parts []string
-		if p <= len(pages) && strings.TrimSpace(pages[p-1]) != "" {
-			parts = append(parts, strings.TrimSpace(pages[p-1]))
+		if p <= len(pages) {
+			if cleaned := sanitizePdfPageForMarkdown(pages[p-1]); cleaned != "" {
+				parts = append(parts, cleaned)
+			}
 		}
 		if atts := schematicsByPage[p]; len(atts) > 0 {
 			for _, att := range atts {

@@ -97,6 +97,46 @@ func TestDetectBoilerBrandNoFalseNavienOnReplaced(t *testing.T) {
 	}
 }
 
+func TestParseProthermMultiColumnAndSanitizeMarkdown(t *testing.T) {
+	pages := []string{
+		"КАТАЛОГ ЗАПАСНЫХ ЧАСТЕЙ\nНапольные котлы",
+		"18,24,35,50 NL - Pensotti\n26\n24\n25\n23\n22\n20\n19\n18\nНапольные котлы 2e.1",
+		strings.Join([]string{
+			"№  № для заказа  Название  №  № для заказа  Название  №  № для заказа  Название",
+			"4  0020033843  Фитинг NL  18  0020033240  Клеммник 6336-37-12-10  28  0020033221  Изолирующая втулка 9 мм",
+			"5  0020033327  Воздухоотводчик 1/4\"  19  0020033553  Панель блока управл.NL  29  0020043361  Панель облицов.(прав.)30NL",
+			"18,24,35,50 NL - Pensotti",
+		}, "\n"),
+	}
+
+	if !isBlueprintDiagramPage(pages[1], pages[2]) {
+		t.Fatalf("expected Protherm exploded view page to be detected as blueprint diagram")
+	}
+
+	schematicsByPage := map[int][]Attachment{
+		2: {{ID: 201, Filename: "schematic_page_02.png", PageNumber: 2}},
+	}
+	meta := ParseBoilerBlueprint("Protherm_Floor.pdf", pages, schematicsByPage)
+	if meta.Brand != "Protherm" {
+		t.Fatalf("Brand = %q, want Protherm", meta.Brand)
+	}
+	if len(meta.Parts) != 6 {
+		t.Fatalf("len(Parts) = %d, want 6: %+v", len(meta.Parts), meta.Parts)
+	}
+	if meta.Parts[1].PartNumber != "0020033240" || !strings.Contains(meta.Parts[1].Name, "Клеммник") || meta.Parts[1].DiagramAttachmentID != 201 {
+		t.Fatalf("unexpected parsed multi-col part: %+v", meta.Parts[1])
+	}
+
+	// Проверяем, что ведущие пробелы (вызывающие чёрные <pre>-блоки в Markdown) и длинные цепочки точек убираются.
+	md := sanitizePdfPageForMarkdown("      26\n        04a Горелка ................................................ 4\n")
+	if strings.HasPrefix(md, " ") || strings.Contains(md, "\n    ") {
+		t.Fatalf("leading spaces not stripped (would render as <pre>): %q", md)
+	}
+	if strings.Contains(md, "......") {
+		t.Fatalf("long dot leader not compacted: %q", md)
+	}
+}
+
 func TestIsBlueprintDiagramPage(t *testing.T) {
 	cases := []struct {
 		name     string
