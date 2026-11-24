@@ -192,12 +192,13 @@ func isBlueprintDiagramPage(pageText, nextPageText string) bool {
 	if reBlueprintDrawingCode.MatchString(norm) {
 		return true
 	}
-	// Страница с коротким текстом, за которой сразу идёт таблица запчастей (взрыв-схемы Vaillant, Protherm, BAXI и др.).
-	if nextPageText != "" && pageHasPartsTable(nextPageText) && len([]rune(norm)) < 600 {
+	// Страница с коротким текстом (без учёта отступов pdftotext -layout), за которой сразу идёт таблица запчастей.
+	compactLen := len([]rune(cleanInlineSpaces(norm)))
+	if nextPageText != "" && pageHasPartsTable(nextPageText) && compactLen < 600 {
 		return true
 	}
 	// Страница с россыпью выносок позиций (6+ коротких строк из чисел) — характерный признак векторной взрыв-схемы.
-	if len([]rune(norm)) < 600 {
+	if compactLen < 600 {
 		calloutLines := 0
 		for _, raw := range strings.Split(norm, "\n") {
 			t := strings.TrimSpace(raw)

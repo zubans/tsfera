@@ -239,6 +239,9 @@ func extractPdfSchematicPages(ctx context.Context, data []byte, pages []string, 
 	} else {
 		for idx, text := range pages {
 			pageNum := idx + 1
+			if pageHasPartsTable(text) {
+				continue
+			}
 			nextText := ""
 			if idx+1 < len(pages) {
 				nextText = pages[idx+1]
@@ -248,7 +251,7 @@ func extractPdfSchematicPages(ctx context.Context, data []byte, pages []string, 
 				continue
 			}
 			// Страница с крупным встроенным изображением и коротким текстом (типичная схема/чертёж-картинка).
-			if largeImgPages[pageNum] && len([]rune(text)) < 450 {
+			if largeImgPages[pageNum] && len([]rune(cleanInlineSpaces(text))) < 450 {
 				candidateSet[pageNum] = true
 			}
 		}
