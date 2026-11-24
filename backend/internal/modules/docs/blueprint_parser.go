@@ -23,7 +23,7 @@ var knownBoilerBrands = []struct {
 	{"Kentatsu", []string{"kentatsu", "nobby smart", "nobby balance", "nobby electro", "impect", "kobold"}},
 	{"BAXI", []string{"baxi", "luna-3", "luna duo-tec", "ecofour", "eco-4s", "eco life", "eco nova", "nuvola", "mainfour", "baxi slim"}},
 	{"Daesung", []string{"daesung"}},
-	{"Protherm", []string{"protherm", "медведь klz", "медведь klom", "медведь plo", "пантера", "гепард", "протерм"}},
+	{"Protherm", []string{"protherm", "медведь klz", "медведь klom", "медведь plo", "пантера", "гепард", "протерм", "бисон", "bison", "pensotti"}},
 	{"Viessmann", []string{"viessmann", "vitopend", "vitodens", "vitogas", "vitola"}},
 	{"Buderus", []string{"buderus", "logamax", "logano"}},
 	{"Bosch", []string{"bosch", "gaz 6000", "gaz 4000", "condens 2500", "condens 7000"}},
@@ -54,6 +54,8 @@ var (
 	reReplacedBy           = regexp.MustCompile(`(?i)(?:замен[её]н\p{L}*|земеня\p{L}*|заменя\p{L}*|replaced\s+by)\s*(?:на\s*)?([0-9A-Za-z][0-9A-Za-z\-./]{4,24})`)
 	reMultiSpace           = regexp.MustCompile(`\s{2,}`)
 	reYearRangeSuffix      = regexp.MustCompile(`\s+(?:19|20)\d{2}(?:\s*-\s*(?:19|20)\d{2})?$`)
+	reCalloutOnlyLine      = regexp.MustCompile(`^\d{1,3}[a-zA-Z]?(?:\s+\d{1,3}[a-zA-Z]?){0,3}$`)
+	reMultiColPartEntry    = regexp.MustCompile(`(?:^|\s)(?:(\d{1,2}|X)\s+)?(00\d{8})\s+`)
 )
 
 // normalizeBlueprintText приводит неразрывные пробелы и типографские дефисы к стандартным символам.
@@ -77,8 +79,8 @@ func DetectBoilerBrand(filename string, pages []string) string {
 	sample.WriteString(strings.ToLower(normalizeBlueprintText(filename)))
 	sample.WriteByte('\n')
 	limit := len(pages)
-	if limit > 5 {
-		limit = 5
+	if limit > 10 {
+		limit = 10
 	}
 	for i := 0; i < limit; i++ {
 		sample.WriteString(strings.ToLower(normalizeBlueprintText(pages[i])))
@@ -152,6 +154,10 @@ func isPartsTableHeaderLine(line string) bool {
 		(strings.Contains(low, "material no") || strings.Contains(low, "part no") || strings.Contains(low, "art.")) {
 		return true
 	}
+	// Формат каталогов Protherm: "№ | № для заказа | Название" (иногда "заказа" перенесено на следующую строку).
+	if strings.Contains(low, "№") && (strings.Contains(low, "для заказа") || strings.Contains(low, "№ для") || strings.Contains(low, "название")) {
+		return true
+	}
 	return false
 }
 
@@ -160,6 +166,10 @@ func isBlueprintDiagramPage(pageText, nextPageText string) bool {
 	norm := normalizeBlueprintText(pageText)
 	low := strings.ToLower(norm)
 	if low == "" {
+		return false
+	}
+	// Страница с таблицей запчастей сама по себе не является взрыв-схемой.
+	if pageHasPartsTable(norm) {
 		return false
 	}
 	// Явные признаки чертежа / взрыв-схемы / схемы обвязки.
@@ -178,13 +188,24 @@ func isBlueprintDiagramPage(pageText, nextPageText string) bool {
 			return true
 		}
 	}
-	// Код чертежа на странице (например, Vaillant "03 - 04 - 076.01") без таблицы запчастей.
-	if reBlueprintDrawingCode.MatchString(norm) && !pageHasPartsTable(norm) {
+	// Код чертежа на странице (например, Vaillant "03 - 04 - 076.01").
+	if reBlueprintDrawingCode.MatchString(norm) {
 		return true
 	}
-	// Страница узла с коротким текстом, за которой на следующей странице идёт таблица запчастей этого узла.
-	if nextPageText != "" && pageHasPartsTable(nextPageText) && !pageHasPartsTable(norm) && len([]rune(norm)) < 450 {
-		if extractAssemblyHeading(norm) != "" {
+	// Страница с коротким текстом, за которой сразу идёт таблица запчастей (взрыв-схемы Vaillant, Protherm, BAXI и др.).
+	if nextPageText != "" && pageHasPartsTable(nextPageText) && len([]rune(norm)) < 600 {
+		return true
+	}
+	// Страница с россыпью выносок позиций (6+ коротких строк из чисел) — характерный признак векторной взрыв-схемы.
+	if len([]rune(norm)) < 600 {
+		calloutLines := 0
+		for _, raw := range strings.Split(norm, "\n") {
+			t := strings.TrimSpace(raw)
+			if t != "" && reCalloutOnlyLine.MatchString(t) {
+				calloutLines++
+			}
+		}
+		if calloutLines >= 6 {
 			return true
 		}
 	}
@@ -282,6 +303,14 @@ func parsePartsTablePage(
 	pageNum, diagPage int,
 	diagAttID int64,
 ) []BoilerPart {
+	// Если на странице многоколоночная таблица Protherm ("№ | № для заказа | Название" x2/x3),
+	// разбираем её специализированным многоколоночным парсером.
+	if isMultiColumnPartsPage(pageText) {
+		if mcParts := parseMultiColumnPartsPage(pageText, brand, model, assembly, pageNum, diagPage, diagAttID); len(mcParts) > 0 {
+			return mcParts
+		}
+	}
+
 	lines := strings.Split(pageText, "\n")
 	headerIdx := -1
 	var descColStart, noteColStart int
@@ -524,6 +553,89 @@ func joinPartText(base, add string) string {
 
 func cleanInlineSpaces(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+func isMultiColumnPartsPage(pageText string) bool {
+	for _, raw := range strings.Split(pageText, "\n") {
+		low := strings.ToLower(raw)
+		if strings.Count(low, "название") >= 2 || strings.Count(low, "№ для") >= 2 {
+			return true
+		}
+	}
+	return false
+}
+
+// parseMultiColumnPartsPage разбирает 2- и 3-колоночные таблицы запчастей (например, каталоги Protherm),
+// где в одной строке идут несколько пар "(№) (00200xxxxx) (Название)".
+func parseMultiColumnPartsPage(
+	pageText, brand, defaultModel, assembly string,
+	pageNum, diagPage int,
+	diagAttID int64,
+) []BoilerPart {
+	lines := strings.Split(pageText, "\n")
+	pageModel := detectPageModelHeading(lines, defaultModel)
+
+	var parts []BoilerPart
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" || isPartsTableHeaderLine(line) {
+			continue
+		}
+		matches := reMultiColPartEntry.FindAllStringSubmatchIndex(line, -1)
+		if len(matches) == 0 {
+			continue
+		}
+		for i, m := range matches {
+			pos := ""
+			if m[2] >= 0 && m[3] > m[2] {
+				pos = strings.TrimSpace(line[m[2]:m[3]])
+			}
+			partNo := strings.TrimSpace(line[m[4]:m[5]])
+			nameStart := m[1]
+			nameEnd := len(line)
+			if i+1 < len(matches) {
+				nameEnd = matches[i+1][0]
+			}
+			name := cleanInlineSpaces(line[nameStart:nameEnd])
+			if partNo == "" || name == "" {
+				continue
+			}
+			parts = append(parts, BoilerPart{
+				Brand:               brand,
+				BoilerModel:         pageModel,
+				Assembly:            assembly,
+				Position:            pos,
+				PartNumber:          partNo,
+				Name:                name,
+				PageNumber:          pageNum,
+				DiagramPage:         diagPage,
+				DiagramAttachmentID: diagAttID,
+			})
+		}
+	}
+	return parts
+}
+
+func detectPageModelHeading(lines []string, fallback string) string {
+	for _, raw := range lines {
+		t := strings.TrimSpace(raw)
+		if t == "" || len([]rune(t)) < 5 || len([]rune(t)) > 80 {
+			continue
+		}
+		low := strings.ToLower(t)
+		if strings.HasPrefix(low, "напольные котлы") || strings.Contains(low, "№ для") ||
+			strings.Contains(low, "название") || reCalloutOnlyLine.MatchString(t) {
+			continue
+		}
+		if reMultiColPartEntry.MatchString(t) {
+			continue
+		}
+		if strings.Contains(low, "bison") || strings.Contains(low, "pensotti") ||
+			strings.Contains(low, "горелка") || strings.Contains(low, "nl") || strings.Contains(low, "no ") {
+			return t
+		}
+	}
+	return fallback
 }
 
 // ExpandFaultKeywords сопоставляет типовые симптомы и коды неисправностей котлов с узлами и запчастями на чертежах.
