@@ -94,6 +94,59 @@ const uploading = ref(false)
 
 const renderedHtml = computed(() => renderMarkdown(currentDoc.value?.content || ''))
 
+const lightboxOpen = ref(false)
+const lightboxSrc = ref('')
+const lightboxTitle = ref('')
+const lightboxZoom = ref(100)
+const lightboxFit = ref(true)
+
+function openImageLightbox(src: string, title = 'Изображение') {
+  lightboxSrc.value = src
+  lightboxTitle.value = title || 'Изображение'
+  lightboxZoom.value = 100
+  lightboxFit.value = true
+  lightboxOpen.value = true
+}
+
+function zoomInLightbox() {
+  lightboxFit.value = false
+  lightboxZoom.value = Math.min(400, lightboxZoom.value + 25)
+}
+
+function zoomOutLightbox() {
+  lightboxFit.value = false
+  lightboxZoom.value = Math.max(50, lightboxZoom.value - 25)
+}
+
+function setLightboxActualSize() {
+  lightboxFit.value = false
+  lightboxZoom.value = 100
+}
+
+function fitLightboxToScreen() {
+  lightboxFit.value = true
+  lightboxZoom.value = 100
+}
+
+function onLightboxWheel(ev: WheelEvent) {
+  if (!ev.ctrlKey && !ev.metaKey) return
+  ev.preventDefault()
+  if (ev.deltaY < 0) {
+    zoomInLightbox()
+  } else {
+    zoomOutLightbox()
+  }
+}
+
+function onMarkdownClick(ev: MouseEvent) {
+  const target = ev.target as HTMLElement | null
+  if (!target || target.tagName !== 'IMG') return
+  const img = target as HTMLImageElement
+  const src = img.getAttribute('src') || ''
+  if (!src) return
+  openImageLightbox(src, img.getAttribute('alt') || 'Схема')
+}
+
 const docTypeOptions = [
   { label: 'Все типы', value: '' },
   { label: 'Статья (article)', value: 'article' },
@@ -606,7 +659,12 @@ onMounted(async () => {
                 {{ item.title }}
               </span>
             </div>
-            <div class="markdown-body" @mouseup="captureSelectionQuote" v-html="renderedHtml" />
+            <div
+              class="markdown-body"
+              @mouseup="captureSelectionQuote"
+              @click="onMarkdownClick"
+              v-html="renderedHtml"
+            />
           </NCard>
 
           <NCard v-else title="Редактор Markdown" style="margin-top: 12px">
@@ -716,11 +774,20 @@ onMounted(async () => {
                   <div v-for="att in currentDoc.attachments" :key="att.id" class="link-row">
                     <NSpace :size="6" align="center">
                       <a
-                        :href="
-                          att.kind === 'schematic'
-                            ? `/api/v1/docs/attachments/${att.id}/download?inline=1`
-                            : `/api/v1/docs/attachments/${att.id}/download`
+                        v-if="att.kind === 'schematic'"
+                        :href="`/api/v1/docs/attachments/${att.id}/download?inline=1`"
+                        @click.prevent="
+                          openImageLightbox(
+                            `/api/v1/docs/attachments/${att.id}/download?inline=1`,
+                            att.page_number ? `${att.filename} (стр. ${att.page_number})` : att.filename
+                          )
                         "
+                      >
+                        {{ att.filename }}
+                      </a>
+                      <a
+                        v-else
+                        :href="`/api/v1/docs/attachments/${att.id}/download`"
                         target="_blank"
                       >
                         {{ att.filename }}
@@ -872,6 +939,46 @@ onMounted(async () => {
         </NSpace>
       </template>
     </NModal>
+
+    <NModal
+      v-model:show="lightboxOpen"
+      preset="card"
+      :title="lightboxTitle"
+      style="width: 92vw; max-width: 1400px"
+      :content-style="{ padding: '12px' }"
+    >
+      <template #header-extra>
+        <NSpace :size="6" align="center" style="margin-right: 12px">
+          <NButton size="tiny" :disabled="!lightboxFit && lightboxZoom <= 50" @click="zoomOutLightbox">−</NButton>
+          <NButton size="tiny" :type="lightboxFit ? 'primary' : 'default'" @click="fitLightboxToScreen">
+            По экрану
+          </NButton>
+          <NButton size="tiny" :type="!lightboxFit && lightboxZoom === 100 ? 'primary' : 'default'" @click="setLightboxActualSize">
+            {{ lightboxFit ? '100%' : `${lightboxZoom}%` }}
+          </NButton>
+          <NButton size="tiny" :disabled="!lightboxFit && lightboxZoom >= 400" @click="zoomInLightbox">+</NButton>
+          <NButton
+            size="tiny"
+            tag="a"
+            :href="lightboxSrc"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Оригинал ↗
+          </NButton>
+        </NSpace>
+      </template>
+      <div class="lightbox-viewport" @wheel="onLightboxWheel">
+        <img
+          :src="lightboxSrc"
+          :alt="lightboxTitle"
+          class="lightbox-img"
+          :class="{ 'is-fit': lightboxFit }"
+          :style="lightboxFit ? undefined : { width: `${lightboxZoom}%` }"
+          @click="lightboxFit ? setLightboxActualSize() : fitLightboxToScreen()"
+        />
+      </div>
+    </NModal>
   </NLayout>
   </div>
 </template>
@@ -993,6 +1100,53 @@ onMounted(async () => {
   font-size: 13px;
   color: #2563eb;
   cursor: pointer;
+}
+.markdown-body {
+  overflow-x: auto;
+}
+.markdown-body :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 75vh;
+  object-fit: contain;
+  margin: 10px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: zoom-in;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.markdown-body :deep(img:hover) {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14);
+}
+.lightbox-viewport {
+  height: 78vh;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+}
+.lightbox-img {
+  display: block;
+  height: auto;
+  max-width: none;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1);
+  cursor: zoom-out;
+}
+.lightbox-img.is-fit {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  object-fit: contain;
+  cursor: zoom-in;
+  margin: auto;
 }
 .markdown-body :deep(pre) {
   background: #0f172a;
