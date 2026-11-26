@@ -1,0 +1,3 @@
+ALTER TABLE users_api_tokens
+    ADD COLUMN IF NOT EXISTS ask_only BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS allowed_spaces JSONB NOT NULL DEFAULT '[]'::jsonb;

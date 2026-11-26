@@ -76,7 +76,8 @@ func parseID(r *http.Request, name string) (int64, error) {
 }
 
 func (h *Handler) listSpaces(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.ListSpaces(r.Context())
+	ac, _ := platform.AuthFromContext(r.Context())
+	items, err := h.svc.ListSpacesForAuth(r.Context(), ac)
 	if err != nil {
 		platform.WriteError(w, h.logger, err)
 		return

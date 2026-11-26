@@ -17,6 +17,7 @@ import (
 	"github.com/zubans/tsfera/backend/internal/modules/chat"
 	"github.com/zubans/tsfera/backend/internal/modules/crm"
 	"github.com/zubans/tsfera/backend/internal/modules/docs"
+	"github.com/zubans/tsfera/backend/internal/modules/mcp"
 	"github.com/zubans/tsfera/backend/internal/modules/users"
 	"github.com/zubans/tsfera/backend/pkg/platform"
 )
@@ -70,6 +71,7 @@ type Platform struct {
 	Docs    *docs.Module
 	AI      *ai.Module
 	Chat    *chat.Module
+	MCP     *mcp.Handler
 	Modules []platform.Module
 	Workers *platform.WorkerGroup
 }
@@ -184,6 +186,7 @@ func newPlatformWithRepos(_ context.Context, cfg Config, repos repositories) (*P
 		p.Docs = docsMod
 		p.AI = aiMod
 		p.Chat = chatMod
+		p.MCP = mcp.NewHandler(docsMod.Service, aiMod.Search, chatMod.Service, auth, logger)
 		p.Modules = append(p.Modules, docsMod, aiMod, chatMod)
 	} else {
 		p.Modules = append(p.Modules, cfg.ExtraModules...)
@@ -258,6 +261,9 @@ func (p *Platform) Mount(r chi.Router) {
 		}
 		mod.MountHTTP(r)
 	}
+	if p.MCP != nil {
+		p.MCP.Mount(r)
+	}
 }
 
 // Handler строит готовый http.Handler для standalone-запуска (с /healthz, /readyz и опциональной раздачей SPA).
@@ -316,7 +322,7 @@ func mountSPA(r chi.Router, spaDir string) {
 	cleanDir := filepath.Clean(spaDir)
 	fsHandler := http.FileServer(http.Dir(cleanDir))
 	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
-		if strings.HasPrefix(req.URL.Path, "/api/") || strings.HasPrefix(req.URL.Path, "/ws/") || strings.HasPrefix(req.URL.Path, "/telephony/") {
+		if strings.HasPrefix(req.URL.Path, "/api/") || strings.HasPrefix(req.URL.Path, "/ws/") || strings.HasPrefix(req.URL.Path, "/telephony/") || req.URL.Path == "/mcp" {
 			http.NotFound(w, req)
 			return
 		}

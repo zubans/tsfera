@@ -396,17 +396,18 @@ func (r *PgRepository) UpdateLastLogin(ctx context.Context, userID int64, at tim
 }
 
 func (r *PgRepository) CreateAPIToken(ctx context.Context, tok *APIToken) (int64, error) {
+	spacesJSON, _ := json.Marshal(nonNilStrings(tok.AllowedSpaces))
 	var id int64
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO users_api_tokens (user_id, name, token_hash, can_read, can_write, expires_at)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-	`, tok.UserID, tok.Name, tok.TokenHash, tok.CanRead, tok.CanWrite, tok.ExpiresAt).Scan(&id)
+		INSERT INTO users_api_tokens (user_id, name, token_hash, can_read, can_write, ask_only, allowed_spaces, expires_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
+	`, tok.UserID, tok.Name, tok.TokenHash, tok.CanRead, tok.CanWrite, tok.AskOnly, spacesJSON, tok.ExpiresAt).Scan(&id)
 	return id, err
 }
 
 func (r *PgRepository) ListAPITokens(ctx context.Context, userID int64) ([]APIToken, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, name, can_read, can_write, expires_at, last_used_at, created_at
+		SELECT id, user_id, name, can_read, can_write, ask_only, allowed_spaces, expires_at, last_used_at, created_at
 		FROM users_api_tokens WHERE user_id=$1 ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -416,8 +417,13 @@ func (r *PgRepository) ListAPITokens(ctx context.Context, userID int64) ([]APITo
 	var list []APIToken
 	for rows.Next() {
 		var t APIToken
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CanRead, &t.CanWrite, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt); err != nil {
+		var rawSpaces []byte
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CanRead, &t.CanWrite, &t.AskOnly, &rawSpaces, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt); err != nil {
 			return nil, err
+		}
+		_ = json.Unmarshal(rawSpaces, &t.AllowedSpaces)
+		if t.AllowedSpaces == nil {
+			t.AllowedSpaces = []string{}
 		}
 		list = append(list, t)
 	}
@@ -426,16 +432,21 @@ func (r *PgRepository) ListAPITokens(ctx context.Context, userID int64) ([]APITo
 
 func (r *PgRepository) GetAPITokenByHash(ctx context.Context, tokenHash string, now time.Time) (*APIToken, error) {
 	var t APIToken
+	var rawSpaces []byte
 	err := r.db.QueryRow(ctx, `
-		SELECT id, user_id, name, token_hash, can_read, can_write, expires_at, last_used_at, created_at
+		SELECT id, user_id, name, token_hash, can_read, can_write, ask_only, allowed_spaces, expires_at, last_used_at, created_at
 		FROM users_api_tokens
 		WHERE token_hash=$1 AND (expires_at IS NULL OR expires_at > $2)
-	`, tokenHash, now).Scan(&t.ID, &t.UserID, &t.Name, &t.TokenHash, &t.CanRead, &t.CanWrite, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt)
+	`, tokenHash, now).Scan(&t.ID, &t.UserID, &t.Name, &t.TokenHash, &t.CanRead, &t.CanWrite, &t.AskOnly, &rawSpaces, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, platform.NewUnauthorized("Недействительный API-токен")
 		}
 		return nil, err
+	}
+	_ = json.Unmarshal(rawSpaces, &t.AllowedSpaces)
+	if t.AllowedSpaces == nil {
+		t.AllowedSpaces = []string{}
 	}
 	return &t, nil
 }
@@ -452,17 +463,22 @@ func (r *PgRepository) DeleteAPIToken(ctx context.Context, tokenID int64, userID
 
 func (r *PgRepository) RefreshAPITokenByHash(ctx context.Context, tokenHash string, newExpiresAt time.Time) (*APIToken, error) {
 	var t APIToken
+	var rawSpaces []byte
 	err := r.db.QueryRow(ctx, `
 		UPDATE users_api_tokens
 		SET expires_at = $2, last_used_at = now()
 		WHERE token_hash = $1
-		RETURNING id, user_id, name, token_hash, can_read, can_write, expires_at, last_used_at, created_at
-	`, tokenHash, newExpiresAt).Scan(&t.ID, &t.UserID, &t.Name, &t.TokenHash, &t.CanRead, &t.CanWrite, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt)
+		RETURNING id, user_id, name, token_hash, can_read, can_write, ask_only, allowed_spaces, expires_at, last_used_at, created_at
+	`, tokenHash, newExpiresAt).Scan(&t.ID, &t.UserID, &t.Name, &t.TokenHash, &t.CanRead, &t.CanWrite, &t.AskOnly, &rawSpaces, &t.ExpiresAt, &t.LastUsedAt, &t.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, platform.NewUnauthorized("Недействительный API-токен")
 		}
 		return nil, err
+	}
+	_ = json.Unmarshal(rawSpaces, &t.AllowedSpaces)
+	if t.AllowedSpaces == nil {
+		t.AllowedSpaces = []string{}
 	}
 	return &t, nil
 }

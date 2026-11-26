@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -53,13 +54,16 @@ func NewService(
 	}
 }
 
-// CanViewDocument проверяет visibility документа с учётом ролей пользователя.
+// CanViewDocument проверяет visibility документа с учётом ролей пользователя и ограничений API-токена.
 func CanViewDocument(auth *platform.AuthContext, doc *Document) bool {
 	if doc == nil || doc.Deleted {
 		return false
 	}
 	if auth == nil {
 		return doc.Visibility == VisibilityPublic
+	}
+	if !auth.CanAccessSpace(doc.Space) {
+		return false
 	}
 	if auth.IsSuperAdmin || auth.HasPermission("docs.manage") {
 		return true
@@ -92,6 +96,24 @@ func (s *Service) publishChange(ctx context.Context, topic string, docID int64) 
 
 func (s *Service) ListSpaces(ctx context.Context) ([]SpaceSummary, error) {
 	return s.repo.ListSpaces(ctx)
+}
+
+// ListSpacesForAuth возвращает пространства, доступные текущему пользователю или API-токену.
+func (s *Service) ListSpacesForAuth(ctx context.Context, auth *platform.AuthContext) ([]SpaceSummary, error) {
+	items, err := s.repo.ListSpaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if auth == nil || !auth.IsToken || len(auth.TokenAllowedSpaces) == 0 {
+		return items, nil
+	}
+	out := make([]SpaceSummary, 0, len(items))
+	for _, sp := range items {
+		if auth.CanAccessSpace(sp.Space) {
+			out = append(out, sp)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) ListDocuments(ctx context.Context, auth *platform.AuthContext, f DocumentFilter) ([]Document, error) {
@@ -161,7 +183,14 @@ func (s *Service) CreateDocument(ctx context.Context, auth *platform.AuthContext
 	}
 	space := strings.TrimSpace(in.Space)
 	if space == "" {
-		space = "general"
+		if auth != nil && auth.IsToken && len(auth.TokenAllowedSpaces) > 0 {
+			space = auth.TokenAllowedSpaces[0]
+		} else {
+			space = "general"
+		}
+	}
+	if auth != nil && !auth.CanAccessSpace(space) {
+		return nil, platform.NewForbidden("Токен не имеет доступа к пространству " + space)
 	}
 	slug := strings.TrimSpace(in.Slug)
 	if slug == "" {
@@ -197,8 +226,11 @@ func (s *Service) CreateDocument(ctx context.Context, auth *platform.AuthContext
 		CreatedBy:  uid,
 		UpdatedBy:  uid,
 	}
+	if auth != nil && !CanViewDocument(auth, doc) {
+		return nil, platform.NewForbidden("Нельзя создать документ с уровнем видимости, недоступным текущему пользователю")
+	}
 	if err := s.repo.SaveDocumentRevision(ctx, doc, 0, &Revision{
-		DiffSummary: firstString(in.DiffSummary, "Создание документа"), CreatedBy: uid,
+		DiffSummary: formatAgentDiffSummary(auth, firstString(in.DiffSummary, "Создание документа")), CreatedBy: uid,
 	}); err != nil {
 		return nil, err
 	}
@@ -251,7 +283,11 @@ func (s *Service) UpdateDocument(ctx context.Context, auth *platform.AuthContext
 	}
 
 	if in.Space != "" {
-		existing.Space = strings.TrimSpace(in.Space)
+		targetSpace := strings.TrimSpace(in.Space)
+		if auth != nil && !auth.CanAccessSpace(targetSpace) {
+			return nil, platform.NewForbidden("Токен не имеет доступа к пространству " + targetSpace)
+		}
+		existing.Space = targetSpace
 	}
 	if in.DocType != "" {
 		existing.DocType = in.DocType
@@ -276,10 +312,13 @@ func (s *Service) UpdateDocument(ctx context.Context, auth *platform.AuthContext
 	if in.Visibility != "" {
 		existing.Visibility = in.Visibility
 	}
+	if auth != nil && !CanViewDocument(auth, existing) {
+		return nil, platform.NewForbidden("Нельзя установить уровень видимости, скрывающий документ от текущего пользователя")
+	}
 	existing.UpdatedBy = uid
 
 	if err := s.repo.SaveDocumentRevision(ctx, existing, in.ExpectedVersion, &Revision{
-		DiffSummary: diffSummary, CreatedBy: uid,
+		DiffSummary: formatAgentDiffSummary(auth, diffSummary), CreatedBy: uid,
 	}); err != nil {
 		return nil, err
 	}
@@ -470,7 +509,9 @@ func (s *Service) AddComment(ctx context.Context, auth *platform.AuthContext, do
 	authorName := "Пользователь"
 	if auth != nil {
 		uid = auth.UserID
-		if auth.DisplayName != "" {
+		if auth.IsToken && strings.TrimSpace(auth.TokenName) != "" {
+			authorName = "агент " + strings.TrimSpace(auth.TokenName)
+		} else if auth.DisplayName != "" {
 			authorName = auth.DisplayName
 		} else if auth.Username != "" {
 			authorName = auth.Username
@@ -791,6 +832,187 @@ func (s *Service) ExportContextMarkdown(ctx context.Context, auth *platform.Auth
 		fmt.Fprintf(&b, "---\n\n## [%s] %s (v%d)\n\n%s\n\n", d.DocType, d.Title, d.Version, d.Content)
 	}
 	return b.String(), nil
+}
+
+// AttachmentTextChunk описывает фрагмент извлечённого текста вложения (для постраничного чтения ИИ-агентом).
+type AttachmentTextChunk struct {
+	Attachment *Attachment `json:"attachment"`
+	Text       string      `json:"text"`
+	Offset     int         `json:"offset"`
+	TotalChars int         `json:"total_chars"`
+	HasMore    bool        `json:"has_more"`
+	NextOffset int         `json:"next_offset"`
+}
+
+// ReadAttachmentText возвращает фрагмент извлечённого текста вложения (PDF/DOCX/XLSX/текст) по offset и limit (в рунах).
+func (s *Service) ReadAttachmentText(ctx context.Context, auth *platform.AuthContext, attID int64, offset, limit int) (*AttachmentTextChunk, error) {
+	att, err := s.repo.GetAttachment(ctx, attID)
+	if err != nil {
+		return nil, err
+	}
+	if att == nil {
+		return nil, platform.NewNotFound("Вложение не найдено")
+	}
+	doc, err := s.repo.GetDocument(ctx, att.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	if !CanViewDocument(auth, doc) {
+		return nil, platform.NewForbidden("Нет прав на чтение вложения")
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 40000
+	}
+	if limit > 80000 {
+		limit = 80000
+	}
+	runes := []rune(att.ExtractedText)
+	total := len(runes)
+	if offset >= total {
+		return &AttachmentTextChunk{
+			Attachment: att,
+			Text:       "",
+			Offset:     offset,
+			TotalChars: total,
+			HasMore:    false,
+			NextOffset: total,
+		}, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return &AttachmentTextChunk{
+		Attachment: att,
+		Text:       string(runes[offset:end]),
+		Offset:     offset,
+		TotalChars: total,
+		HasMore:    end < total,
+		NextOffset: end,
+	}, nil
+}
+
+const AgentWorkLogSlug = "agent-work-log"
+
+// LogAgentResult дописывает итог выполненной ИИ-агентом задачи в документ «Журнал работ агентов».
+func (s *Service) LogAgentResult(ctx context.Context, auth *platform.AuthContext, space, title, summary string, decisions []string) (*Document, error) {
+	title = strings.TrimSpace(title)
+	summary = strings.TrimSpace(summary)
+	if title == "" {
+		return nil, platform.NewValidation("Укажите заголовок записи", map[string]string{"title": "Обязательное поле"})
+	}
+	if summary == "" {
+		return nil, platform.NewValidation("Укажите краткий итог работы", map[string]string{"summary": "Обязательное поле"})
+	}
+	space = strings.TrimSpace(space)
+	if space == "" {
+		if auth != nil && auth.IsToken && len(auth.TokenAllowedSpaces) > 0 {
+			space = auth.TokenAllowedSpaces[0]
+		} else {
+			space = "general"
+		}
+	}
+	if auth != nil && !auth.CanAccessSpace(space) {
+		return nil, platform.NewForbidden("Токен не имеет доступа к пространству " + space)
+	}
+
+	actor := "Пользователь"
+	if auth != nil {
+		if auth.IsToken && strings.TrimSpace(auth.TokenName) != "" {
+			actor = "агент " + strings.TrimSpace(auth.TokenName)
+		} else if auth.DisplayName != "" {
+			actor = auth.DisplayName
+		} else if auth.Username != "" {
+			actor = auth.Username
+		}
+	}
+
+	var entry strings.Builder
+	fmt.Fprintf(&entry, "## %s · %s · %s\n\n%s", s.clock().Format("2006-01-02 15:04"), actor, title, summary)
+	var cleanDecisions []string
+	for _, d := range decisions {
+		if t := strings.TrimSpace(d); t != "" {
+			cleanDecisions = append(cleanDecisions, t)
+		}
+	}
+	if len(cleanDecisions) > 0 {
+		entry.WriteString("\n\n**Принятые решения:**\n")
+		for _, d := range cleanDecisions {
+			fmt.Fprintf(&entry, "- %s\n", d)
+		}
+	}
+
+	// Токен не может получить больше прав, чем есть у его владельца.
+	if auth != nil && !auth.HasOwnerPermission("docs.create") && !auth.HasOwnerPermission("docs.update") {
+		return nil, platform.NewForbidden("У владельца токена нет прав на запись в журнал работ агентов")
+	}
+
+	// Для ask_only-токена запись в журнал работ разрешена в пределах прав владельца (как в КБ).
+	writeAuth := auth
+	if auth != nil && auth.IsToken && auth.TokenAskOnly {
+		cp := *auth
+		cp.TokenAskOnly = false
+		cp.TokenCanRead = true
+		cp.TokenCanWrite = true
+		writeAuth = &cp
+	}
+
+	// Повторяем до 3 раз при гонке параллельных записей (409 Conflict).
+	const maxLogAttempts = 3
+	for attempt := 0; attempt < maxLogAttempts; attempt++ {
+		existing, err := s.repo.GetDocumentBySlug(ctx, space, AgentWorkLogSlug)
+		if err != nil {
+			return nil, err
+		}
+		if existing == nil {
+			if auth != nil && !auth.HasOwnerPermission("docs.create") {
+				return nil, platform.NewForbidden("Нет права docs.create для создания журнала работ агентов")
+			}
+			content := "# Журнал работ агентов\n\n" + entry.String()
+			doc, createErr := s.CreateDocument(ctx, writeAuth, SaveDocumentInput{
+				Space:       space,
+				DocType:     DocTypeNote,
+				Title:       "Журнал работ агентов",
+				Slug:        AgentWorkLogSlug,
+				Content:     content,
+				Status:      "active",
+				Visibility:  VisibilityInternal,
+				DiffSummary: "Запись в журнал работ агентов: " + title,
+			})
+			if createErr == nil || !errors.Is(createErr, platform.ErrConflict) || attempt == maxLogAttempts-1 {
+				return doc, createErr
+			}
+			continue
+		}
+		if auth != nil && !auth.HasOwnerPermission("docs.update") {
+			return nil, platform.NewForbidden("Нет права docs.update для дополнения журнала работ агентов")
+		}
+		newContent := strings.TrimRight(existing.Content, "\n") + "\n\n---\n\n" + entry.String()
+		doc, updErr := s.UpdateDocument(ctx, writeAuth, existing.ID, SaveDocumentInput{
+			Title:           existing.Title,
+			Content:         newContent,
+			ExpectedVersion: existing.Version,
+			DiffSummary:     "Запись в журнал работ агентов: " + title,
+		})
+		if updErr == nil || !errors.Is(updErr, platform.ErrConflict) || attempt == maxLogAttempts-1 {
+			return doc, updErr
+		}
+	}
+	return nil, platform.NewConflict("Не удалось записать итог в журнал работ агентов из-за параллельного изменения")
+}
+
+func formatAgentDiffSummary(auth *platform.AuthContext, summary string) string {
+	summary = strings.TrimSpace(summary)
+	if auth != nil && auth.IsToken && strings.TrimSpace(auth.TokenName) != "" {
+		prefix := "[агент " + strings.TrimSpace(auth.TokenName) + "] "
+		if !strings.HasPrefix(summary, prefix) {
+			return prefix + summary
+		}
+	}
+	return summary
 }
 
 // --- helpers ---

@@ -541,3 +541,49 @@ func TestFileUploadPermissionLookupAndNameValidation(t *testing.T) {
 		t.Fatalf("GET file status = %d, body = %q", recDown.Code, recDown.Body.String())
 	}
 }
+
+func TestAgentTokenAskOnlyAndSpaces(t *testing.T) {
+	repo := newStubRepo()
+	repo.roles["editor"] = &Role{Name: "editor", Permissions: []string{"docs.view", "docs.create"}}
+	repo.users[1] = &User{ID: 1, Username: "editor1", Roles: []string{"editor"}, Active: true}
+
+	svc := NewService(repo, time.Hour)
+	tok, raw, err := svc.CreateAPIToken(context.Background(), 1, CreateTokenInput{
+		Name:          "claude-ask",
+		AskOnly:       true,
+		AllowedSpaces: []string{" reglaments ", "REGLAMENTS", "boilers"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tok.AskOnly || tok.CanRead || tok.CanWrite {
+		t.Fatalf("expected ask_only=true, can_read=false, can_write=false; got %+v", tok)
+	}
+	if !slices.Equal(tok.AllowedSpaces, []string{"reglaments", "boilers"}) {
+		t.Fatalf("unexpected normalized allowed_spaces: %v", tok.AllowedSpaces)
+	}
+
+	r := chi.NewRouter()
+	NewHandler(svc, nil).Mount(r)
+
+	// ask_only токен не проходит RequireAuth на обычных REST-маршрутах.
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for ask_only token on REST /me, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// ResolveRequest корректно возвращает AskOnly и AllowedSpaces.
+	ac, err := svc.ResolveRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ac.TokenAskOnly || !ac.CanAccessSpace("reglaments") || ac.CanAccessSpace("secret") {
+		t.Fatalf("unexpected AuthContext: %+v", ac)
+	}
+	if ac.HasPermission("docs.view") || !ac.HasOwnerPermission("docs.view") {
+		t.Fatalf("expected HasPermission=false and HasOwnerPermission=true for ask_only")
+	}
+}

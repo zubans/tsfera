@@ -56,6 +56,8 @@ export interface APIToken {
   name: string
   can_read: boolean
   can_write: boolean
+  ask_only: boolean
+  allowed_spaces?: string[]
   expires_at?: string | null
   last_used_at?: string | null
   created_at: string

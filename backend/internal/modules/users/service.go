@@ -168,6 +168,8 @@ func (s *Service) resolveAPIToken(ctx context.Context, raw string, now time.Time
 	ac.TokenName = tok.Name
 	ac.TokenCanRead = tok.CanRead
 	ac.TokenCanWrite = tok.CanWrite
+	ac.TokenAskOnly = tok.AskOnly
+	ac.TokenAllowedSpaces = tok.AllowedSpaces
 	_ = s.repo.TouchAPIToken(ctx, tok.ID, now)
 	return ac, nil
 }
@@ -560,10 +562,33 @@ func (s *Service) ListPermissions(ctx context.Context) ([]platform.PermissionDef
 }
 
 type CreateTokenInput struct {
-	Name     string `json:"name"`
-	CanRead  bool   `json:"can_read"`
-	CanWrite bool   `json:"can_write"`
-	TTLDays  int    `json:"ttl_days"`
+	Name          string   `json:"name"`
+	CanRead       bool     `json:"can_read"`
+	CanWrite      bool     `json:"can_write"`
+	AskOnly       bool     `json:"ask_only"`
+	AllowedSpaces []string `json:"allowed_spaces"`
+	TTLDays       int      `json:"ttl_days"`
+}
+
+func normalizeSpaces(spaces []string) []string {
+	if len(spaces) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]bool, len(spaces))
+	out := make([]string, 0, len(spaces))
+	for _, s := range spaces {
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func (s *Service) CreateAPIToken(ctx context.Context, userID int64, in CreateTokenInput) (*APIToken, string, error) {
@@ -579,13 +604,21 @@ func (s *Service) CreateAPIToken(ctx context.Context, userID int64, in CreateTok
 		t := s.nowFn().Add(time.Duration(in.TTLDays) * 24 * time.Hour)
 		exp = &t
 	}
+	canRead := in.CanRead || in.CanWrite
+	canWrite := in.CanWrite
+	if in.AskOnly {
+		canRead = false
+		canWrite = false
+	}
 	tok := &APIToken{
-		UserID:    userID,
-		Name:      strings.TrimSpace(in.Name),
-		TokenHash: hash,
-		CanRead:   in.CanRead || in.CanWrite,
-		CanWrite:  in.CanWrite,
-		ExpiresAt: exp,
+		UserID:        userID,
+		Name:          strings.TrimSpace(in.Name),
+		TokenHash:     hash,
+		CanRead:       canRead,
+		CanWrite:      canWrite,
+		AskOnly:       in.AskOnly,
+		AllowedSpaces: normalizeSpaces(in.AllowedSpaces),
+		ExpiresAt:     exp,
 	}
 	id, err := s.repo.CreateAPIToken(ctx, tok)
 	if err != nil {
