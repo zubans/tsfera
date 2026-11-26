@@ -10,8 +10,11 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NInputNumber,
   NSelect,
   NSwitch,
+  NRadioGroup,
+  NRadio,
   NCheckboxGroup,
   NCheckbox,
   NTag,
@@ -30,7 +33,8 @@ import type {
   APIToken,
   LoginEvent,
   InventoryItem,
-  Subdivision
+  Subdivision,
+  SpaceSummary
 } from '@/shared/types/domain'
 
 const auth = useAuthStore()
@@ -41,6 +45,7 @@ const tokens = ref<APIToken[]>([])
 const loginEvents = ref<LoginEvent[]>([])
 const inventoryItems = ref<InventoryItem[]>([])
 const subdivisions = ref<Subdivision[]>([])
+const docSpaces = ref<SpaceSummary[]>([])
 const errorMsg = ref('')
 
 const inventoryCategory = ref<'work_clothes' | 'instrument' | 'engineer_equipment'>('work_clothes')
@@ -82,8 +87,33 @@ const userForm = ref({
 
 const tokenModalOpen = ref(false)
 const newTokenName = ref('')
-const newTokenWrite = ref(false)
+const newTokenLevel = ref<'ask_only' | 'read' | 'write'>('read')
+const newTokenSpaces = ref<string[]>([])
+const newTokenTTLDays = ref<number | null>(90)
 const createdPlainToken = ref('')
+const copiedNotice = ref('')
+
+const mcpEndpointUrl = computed(() => `${window.location.origin}/mcp`)
+const agentGuideUrl = computed(() => `${window.location.origin}/api/agent-guide.md`)
+const mcpConnectCommand = computed(() => {
+  const tokenPlaceholder = createdPlainToken.value || '<токен>'
+  return `claude mcp add --transport http tsfera ${mcpEndpointUrl.value} --header "Authorization: Bearer ${tokenPlaceholder}"`
+})
+const spaceOptions = computed(() =>
+  docSpaces.value.map((s) => ({ label: `${s.space} (${s.count})`, value: s.space }))
+)
+
+async function copyText(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedNotice.value = label
+    setTimeout(() => {
+      if (copiedNotice.value === label) copiedNotice.value = ''
+    }, 2000)
+  } catch {
+    errorMsg.value = 'Не удалось скопировать в буфер обмена'
+  }
+}
 
 const roleModalOpen = ref(false)
 const roleForm = ref({ name: '', description: '', permissions: [] as string[] })
@@ -108,14 +138,15 @@ const filteredInventory = computed(() =>
 )
 
 async function loadAll() {
-  const [u, r, p, t, l, inv, sub] = await Promise.allSettled([
+  const [u, r, p, t, l, inv, sub, sp] = await Promise.allSettled([
     requestJSON<User[]>('/api/v1/admin/users'),
     requestJSON<Role[]>('/api/v1/admin/roles'),
     requestJSON<PermissionDef[]>('/api/v1/admin/permissions'),
     requestJSON<APIToken[]>('/api/v1/tokens'),
     requestJSON<LoginEvent[]>('/api/v1/admin/logins?limit=50'),
     requestJSON<InventoryItem[]>('/api/v1/admin/inventory'),
-    requestJSON<Subdivision[]>('/api/v1/crm/subdivisions')
+    requestJSON<Subdivision[]>('/api/v1/crm/subdivisions'),
+    requestJSON<SpaceSummary[]>('/api/v1/docs/spaces')
   ])
   if (u.status === 'fulfilled') users.value = u.value ?? []
   if (r.status === 'fulfilled') roles.value = r.value ?? []
@@ -124,6 +155,7 @@ async function loadAll() {
   if (l.status === 'fulfilled') loginEvents.value = l.value ?? []
   if (inv.status === 'fulfilled') inventoryItems.value = inv.value ?? []
   if (sub.status === 'fulfilled') subdivisions.value = sub.value ?? []
+  if (sp.status === 'fulfilled') docSpaces.value = sp.value ?? []
 }
 
 onMounted(loadAll)
@@ -247,13 +279,31 @@ async function deleteInventoryItem(id: number) {
 }
 
 async function createToken() {
-  const res = await requestJSON<{ id: number; token: string }>('/api/v1/tokens', {
-    method: 'POST',
-    body: JSON.stringify({ name: newTokenName.value, can_read: true, can_write: newTokenWrite.value, ttl_days: 90 })
-  })
-  createdPlainToken.value = res.token
-  newTokenName.value = ''
-  await loadAll()
+  errorMsg.value = ''
+  try {
+    const isAskOnly = newTokenLevel.value === 'ask_only'
+    const canWrite = newTokenLevel.value === 'write'
+    const res = await requestJSON<{ token: APIToken; secret: string }>('/api/v1/tokens', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: newTokenName.value.trim(),
+        ask_only: isAskOnly,
+        can_read: !isAskOnly,
+        can_write: canWrite,
+        allowed_spaces: newTokenSpaces.value,
+        ttl_days: newTokenTTLDays.value || 0
+      })
+    })
+    createdPlainToken.value = res.secret
+    newTokenName.value = ''
+    newTokenLevel.value = 'read'
+    newTokenSpaces.value = []
+    newTokenTTLDays.value = 90
+    tokenModalOpen.value = false
+    await loadAll()
+  } catch (e) {
+    errorMsg.value = e instanceof ApiError ? e.message : 'Ошибка выпуска токена'
+  }
 }
 
 async function deleteToken(id: number) {
@@ -355,16 +405,60 @@ const userColumns: DataTableColumns<User> = [
       </NTabPane>
 
       <NTabPane name="tokens" tab="API-токены">
-        <NSpace vertical>
+        <NSpace vertical :size="12">
+          <NAlert type="info" title="Подключение ИИ-моделей (MCP) к документации">
+            <NSpace vertical :size="6">
+              <div>
+                MCP-сервер (Streamable HTTP): <code>{{ mcpEndpointUrl }}</code> · Справка для агента:
+                <a :href="agentGuideUrl" target="_blank" rel="noopener">{{ agentGuideUrl }}</a>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+                <code style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; word-break: break-all">
+                  {{ mcpConnectCommand }}
+                </code>
+                <NButton size="tiny" secondary @click="copyText(mcpConnectCommand, 'Команда скопирована')">
+                  Копировать команду
+                </NButton>
+                <span v-if="copiedNotice" style="font-size: 12px; color: #16a34a">{{ copiedNotice }}</span>
+              </div>
+            </NSpace>
+          </NAlert>
           <NAlert v-if="createdPlainToken" type="success" closable @close="createdPlainToken = ''">
-            Сохраните токен сейчас (показывается 1 раз): <code>{{ createdPlainToken }}</code>
+            <NSpace vertical :size="6">
+              <div>
+                Сохраните токен сейчас (показывается 1 раз): <code>{{ createdPlainToken }}</code>
+                <NButton size="tiny" style="margin-left: 8px" @click="copyText(createdPlainToken, 'Токен скопирован')">
+                  Копировать токен
+                </NButton>
+              </div>
+            </NSpace>
           </NAlert>
           <NDataTable
             :data="tokens"
             :columns="[
               { title: 'Название', key: 'name' },
-              { title: 'Чтение', key: 'can_read', render: (t: APIToken) => (t.can_read ? 'Да' : 'Нет') },
-              { title: 'Запись', key: 'can_write', render: (t: APIToken) => (t.can_write ? 'Да' : 'Нет') },
+              {
+                title: 'Уровень доступа',
+                key: 'level',
+                render: (t: APIToken) => {
+                  if (t.ask_only) return h(NTag, { size: 'small', type: 'warning' }, () => 'Только вопросы')
+                  if (t.can_write) return h(NTag, { size: 'small', type: 'success' }, () => 'Чтение и запись')
+                  return h(NTag, { size: 'small', type: 'info' }, () => 'Только чтение')
+                }
+              },
+              {
+                title: 'Пространства',
+                key: 'allowed_spaces',
+                render: (t: APIToken) =>
+                  t.allowed_spaces && t.allowed_spaces.length > 0
+                    ? h(
+                        NSpace,
+                        { size: 4 },
+                        () => t.allowed_spaces!.map((sp) => h(NTag, { size: 'tiny' }, () => sp))
+                      )
+                    : 'Все'
+              },
+              { title: 'Использован', key: 'last_used_at', render: (t: APIToken) => formatDateTime(t.last_used_at) },
               { title: 'Истекает', key: 'expires_at', render: (t: APIToken) => formatDateTime(t.expires_at) },
               {
                 title: 'Действия',
@@ -508,11 +602,33 @@ const userColumns: DataTableColumns<User> = [
       </NForm>
     </NModal>
 
-    <NModal v-model:show="tokenModalOpen" preset="card" title="Выпустить API-токен" style="width: 420px">
+    <NModal v-model:show="tokenModalOpen" preset="card" title="Выпустить API-токен для ИИ-агента" style="width: 480px; max-width: 96vw">
       <NForm>
-        <NFormItem label="Название"><NInput v-model:value="newTokenName" placeholder="Мобильный клиент / Агент" /></NFormItem>
-        <NFormItem label="Разрешить запись (мутации)"><NSwitch v-model:value="newTokenWrite" /></NFormItem>
-        <NButton type="primary" block @click="createToken">Выпустить</NButton>
+        <NFormItem label="Название"><NInput v-model:value="newTokenName" placeholder="Claude Code / Внешний ИИ-агент" /></NFormItem>
+        <NFormItem label="Уровень доступа">
+          <NRadioGroup v-model:value="newTokenLevel">
+            <NSpace vertical :size="6">
+              <NRadio value="ask_only">Только вопросы (MCP: ask, list_spaces, log_result; REST закрыт)</NRadio>
+              <NRadio value="read">Только чтение (поиск, документы, схемы, вложения, ask)</NRadio>
+              <NRadio value="write">Чтение и запись (создание, правка с версиями, примечания; без удаления)</NRadio>
+            </NSpace>
+          </NRadioGroup>
+        </NFormItem>
+        <NFormItem label="Ограничить пространствами (пусто — все)">
+          <NSelect
+            v-model:value="newTokenSpaces"
+            multiple
+            filterable
+            tag
+            clearable
+            placeholder="Все доступные пространства"
+            :options="spaceOptions"
+          />
+        </NFormItem>
+        <NFormItem label="Срок действия (дней, 0 — бессрочно)">
+          <NInputNumber v-model:value="newTokenTTLDays" :min="0" :max="3650" style="width: 100%" />
+        </NFormItem>
+        <NButton type="primary" block :disabled="!newTokenName.trim()" @click="createToken">Выпустить</NButton>
       </NForm>
     </NModal>
 

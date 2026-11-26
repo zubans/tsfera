@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,25 +23,19 @@ type AuthContext struct {
 	Permissions   map[string]bool
 
 	// Поля для API-токенов (мобильный клиент или ИИ-агент).
-	IsToken       bool
-	TokenID       int64
-	TokenName     string
-	TokenCanRead  bool
-	TokenCanWrite bool
+	IsToken            bool
+	TokenID            int64
+	TokenName          string
+	TokenCanRead       bool
+	TokenCanWrite      bool
+	TokenAskOnly       bool
+	TokenAllowedSpaces []string
 }
 
-// HasPermission проверяет наличие права (у супер-администратора есть все права; у токена учитывается флаг записи).
-func (a *AuthContext) HasPermission(perm string) bool {
+// HasOwnerPermission проверяет право владельца (без ограничений уровня токена).
+func (a *AuthContext) HasOwnerPermission(perm string) bool {
 	if a == nil {
 		return false
-	}
-	if a.IsToken {
-		if !a.TokenCanRead && !a.TokenCanWrite {
-			return false
-		}
-		if isWritePermission(perm) && !a.TokenCanWrite {
-			return false
-		}
 	}
 	if a.IsSuperAdmin {
 		return true
@@ -48,9 +43,42 @@ func (a *AuthContext) HasPermission(perm string) bool {
 	return a.Permissions[perm]
 }
 
+// CanAccessSpace проверяет, разрешено ли токену обращаться к указанному пространству документации.
+func (a *AuthContext) CanAccessSpace(space string) bool {
+	if a == nil || !a.IsToken || len(a.TokenAllowedSpaces) == 0 {
+		return true
+	}
+	target := strings.TrimSpace(space)
+	for _, allowed := range a.TokenAllowedSpaces {
+		if strings.EqualFold(strings.TrimSpace(allowed), target) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPermission проверяет наличие права (у супер-администратора есть все права; у токена учитывается уровень доступа).
+func (a *AuthContext) HasPermission(perm string) bool {
+	if a == nil {
+		return false
+	}
+	if a.IsToken {
+		if a.TokenAskOnly {
+			return false
+		}
+		if !a.TokenCanRead && !a.TokenCanWrite {
+			return false
+		}
+		if isWritePermission(perm) && !a.TokenCanWrite {
+			return false
+		}
+	}
+	return a.HasOwnerPermission(perm)
+}
+
 func isWritePermission(perm string) bool {
 	return len(perm) > 6 && (slices.Contains([]string{
-		".create", ".update", ".rating", ".update_comment", ".update_executor", ".change_password", ".delete", ".write", ".close", ".execute", ".manage", ".admin", ".run",
+		".create", ".update", ".rating", ".update_comment", ".update_executor", ".change_password", ".delete", ".write", ".close", ".execute", ".manage", ".admin", ".run", ".comment", ".share",
 	}, perm[max(0, lastDotIndex(perm)):]))
 }
 
@@ -100,6 +128,10 @@ func RequireAuth(auth Authorizer, optional bool) func(http.Handler) http.Handler
 					return
 				}
 				WriteError(w, nil, NewUnauthorized("Требуется авторизация"))
+				return
+			}
+			if ac.IsToken && ac.TokenAskOnly {
+				WriteError(w, nil, NewForbidden("Токен в режиме «только вопросы» не имеет доступа к REST API; используйте MCP"))
 				return
 			}
 			if ac.IsToken && !ac.TokenCanWrite && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {

@@ -72,15 +72,17 @@ type Role struct {
 
 // APIToken используется мобильными клиентами (X-API-key) и ИИ-агентами (Bearer).
 type APIToken struct {
-	ID         int64      `json:"id"`
-	UserID     int64      `json:"user_id"`
-	Name       string     `json:"name"`
-	TokenHash  string     `json:"-"`
-	CanRead    bool       `json:"can_read"`
-	CanWrite   bool       `json:"can_write"`
-	ExpiresAt  *time.Time `json:"expires_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID            int64      `json:"id"`
+	UserID        int64      `json:"user_id"`
+	Name          string     `json:"name"`
+	TokenHash     string     `json:"-"`
+	CanRead       bool       `json:"can_read"`
+	CanWrite      bool       `json:"can_write"`
+	AskOnly       bool       `json:"ask_only"`
+	AllowedSpaces []string   `json:"allowed_spaces"`
+	ExpiresAt     *time.Time `json:"expires_at"`
+	LastUsedAt    *time.Time `json:"last_used_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // LoginEvent фиксирует историю входов, неудачных попыток и выходов пользователей.

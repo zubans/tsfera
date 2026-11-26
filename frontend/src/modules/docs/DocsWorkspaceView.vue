@@ -7,6 +7,7 @@ import {
   NLayoutContent,
   NSpace,
   NInput,
+  NInputNumber,
   NSelect,
   NButton,
   NTag,
@@ -17,6 +18,8 @@ import {
   NModal,
   NForm,
   NFormItem,
+  NRadioGroup,
+  NRadio,
   NDivider,
   NSpin
 } from 'naive-ui'
@@ -25,6 +28,7 @@ import { renderMarkdown } from '@/shared/utils/markdown'
 import { formatDateTime } from '@/shared/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import type {
+  APIToken,
   DocDocument,
   DocComment,
   DocRevision,
@@ -99,6 +103,83 @@ const lightboxSrc = ref('')
 const lightboxTitle = ref('')
 const lightboxZoom = ref(100)
 const lightboxFit = ref(true)
+
+const mcpModalOpen = ref(false)
+const mcpCopied = ref(false)
+const mcpTokens = ref<APIToken[]>([])
+const mcpTokenName = ref('')
+const mcpTokenLevel = ref<'ask_only' | 'read' | 'write'>('read')
+const mcpTokenSpaces = ref<string[]>([])
+const mcpTokenTTLDays = ref<number | null>(90)
+const mcpCreatedSecret = ref('')
+const mcpTokenError = ref('')
+
+const mcpEndpointUrl = computed(() => `${window.location.origin}/mcp`)
+const mcpGuideUrl = computed(() => `${window.location.origin}/api/agent-guide.md`)
+const mcpAddCommand = computed(() => {
+  const secret = mcpCreatedSecret.value || '<токен>'
+  return `claude mcp add --transport http tsfera ${mcpEndpointUrl.value} --header "Authorization: Bearer ${secret}"`
+})
+
+async function openMcpModal() {
+  mcpTokenError.value = ''
+  mcpModalOpen.value = true
+  try {
+    mcpTokens.value = (await requestJSON<APIToken[]>('/api/v1/tokens')) ?? []
+  } catch (err) {
+    mcpTokenError.value = err instanceof ApiError ? err.message : 'Не удалось загрузить токены'
+  }
+}
+
+async function createPersonalMcpToken() {
+  if (!mcpTokenName.value.trim()) return
+  mcpTokenError.value = ''
+  try {
+    const isAskOnly = mcpTokenLevel.value === 'ask_only'
+    const canWrite = mcpTokenLevel.value === 'write'
+    const res = await requestJSON<{ token: APIToken; secret: string }>('/api/v1/tokens', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: mcpTokenName.value.trim(),
+        ask_only: isAskOnly,
+        can_read: !isAskOnly,
+        can_write: canWrite,
+        allowed_spaces: mcpTokenSpaces.value,
+        ttl_days: mcpTokenTTLDays.value || 0
+      })
+    })
+    mcpCreatedSecret.value = res.secret
+    mcpTokenName.value = ''
+    mcpTokenLevel.value = 'read'
+    mcpTokenSpaces.value = []
+    mcpTokenTTLDays.value = 90
+    mcpTokens.value = (await requestJSON<APIToken[]>('/api/v1/tokens')) ?? []
+  } catch (err) {
+    mcpTokenError.value = err instanceof ApiError ? err.message : 'Не удалось выпустить токен'
+  }
+}
+
+async function revokePersonalMcpToken(id: number) {
+  mcpTokenError.value = ''
+  try {
+    await requestJSON(`/api/v1/tokens/${id}`, { method: 'DELETE' })
+    mcpTokens.value = (await requestJSON<APIToken[]>('/api/v1/tokens')) ?? []
+  } catch (err) {
+    mcpTokenError.value = err instanceof ApiError ? err.message : 'Не удалось отозвать токен'
+  }
+}
+
+async function copyMcpCommand() {
+  try {
+    await navigator.clipboard.writeText(mcpAddCommand.value)
+    mcpCopied.value = true
+    setTimeout(() => {
+      mcpCopied.value = false
+    }, 2000)
+  } catch {
+    mcpTokenError.value = 'Не удалось скопировать команду'
+  }
+}
 
 function openImageLightbox(src: string, title = 'Изображение') {
   lightboxSrc.value = src
@@ -534,6 +615,14 @@ onMounted(async () => {
               "
             >
               Импорт
+            </NButton>
+            <NButton
+              size="tiny"
+              quaternary
+              title="Подключение ИИ-моделей по токену (MCP)"
+              @click="openMcpModal"
+            >
+              MCP
             </NButton>
           </NSpace>
         </NSpace>
@@ -978,6 +1067,98 @@ onMounted(async () => {
           @click="lightboxFit ? setLightboxActualSize() : fitLightboxToScreen()"
         />
       </div>
+    </NModal>
+
+    <NModal v-model:show="mcpModalOpen" preset="card" title="Подключение ИИ-агента (MCP) к документации" style="width: 680px; max-width: 96vw">
+      <NSpace vertical :size="12">
+        <div style="font-size: 13px; color: #334155">
+          Внешние ИИ-модели (Claude Code, Codex, Antigravity и др.) могут работать с документацией Теплосферы по персональному API-токену через MCP (Streamable HTTP).
+        </div>
+        <div>
+          <strong>Адрес MCP:</strong> <code>{{ mcpEndpointUrl }}</code>
+        </div>
+        <div>
+          <strong>Справка для агента:</strong>
+          <a :href="mcpGuideUrl" target="_blank" rel="noopener">{{ mcpGuideUrl }}</a>
+        </div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px">Команда подключения (Claude Code):</div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-family: monospace; font-size: 12px; word-break: break-all">
+            {{ mcpAddCommand }}
+          </div>
+          <NSpace style="margin-top: 8px" align="center">
+            <NButton size="small" secondary @click="copyMcpCommand">
+              {{ mcpCopied ? 'Скопировано' : 'Копировать команду' }}
+            </NButton>
+            <NButton v-if="auth.hasPerm('admin.user.view')" size="small" quaternary @click="router.push('/admin/users')">
+              Управление в админке
+            </NButton>
+          </NSpace>
+        </div>
+
+        <NAlert v-if="mcpTokenError" type="error" closable @close="mcpTokenError = ''">{{ mcpTokenError }}</NAlert>
+        <NAlert v-if="mcpCreatedSecret" type="success" closable @close="mcpCreatedSecret = ''">
+          Токен создан (показывается 1 раз и уже подставлен в команду выше): <code>{{ mcpCreatedSecret }}</code>
+        </NAlert>
+
+        <NDivider style="margin: 4px 0">Выпустить личный API-токен</NDivider>
+        <NForm size="small">
+          <NFormItem label="Название">
+            <NInput v-model:value="mcpTokenName" placeholder="Claude Code / Внешний ИИ-агент" />
+          </NFormItem>
+          <NFormItem label="Уровень доступа">
+            <NRadioGroup v-model:value="mcpTokenLevel">
+              <NSpace vertical :size="4">
+                <NRadio value="ask_only">Только вопросы (ask, list_spaces, log_result; REST закрыт)</NRadio>
+                <NRadio value="read">Только чтение (поиск, документы, схемы, вложения, ask)</NRadio>
+                <NRadio value="write">Чтение и запись (без удаления)</NRadio>
+              </NSpace>
+            </NRadioGroup>
+          </NFormItem>
+          <NFormItem label="Ограничить пространствами (пусто — все)">
+            <NSelect
+              v-model:value="mcpTokenSpaces"
+              multiple
+              filterable
+              tag
+              clearable
+              placeholder="Все доступные пространства"
+              :options="spaces.map((s) => ({ label: `${s.space} (${s.count})`, value: s.space }))"
+            />
+          </NFormItem>
+          <NFormItem label="Срок действия (дней, 0 — бессрочно)">
+            <NInputNumber v-model:value="mcpTokenTTLDays" :min="0" :max="3650" style="width: 100%" />
+          </NFormItem>
+          <NButton type="primary" size="small" :disabled="!mcpTokenName.trim()" @click="createPersonalMcpToken">
+            Выпустить токен
+          </NButton>
+        </NForm>
+
+        <div v-if="mcpTokens.length > 0">
+          <NDivider style="margin: 4px 0">Мои активные токены</NDivider>
+          <NSpace vertical :size="6">
+            <div
+              v-for="t in mcpTokens"
+              :key="t.id"
+              style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px"
+            >
+              <div style="font-size: 12px">
+                <strong>{{ t.name }}</strong>
+                <NTag size="tiny" style="margin-left: 6px" :type="t.ask_only ? 'warning' : t.can_write ? 'success' : 'info'">
+                  {{ t.ask_only ? 'Только вопросы' : t.can_write ? 'Чтение и запись' : 'Только чтение' }}
+                </NTag>
+                <span v-if="t.allowed_spaces && t.allowed_spaces.length > 0" style="color: #64748b; margin-left: 6px">
+                  [{{ t.allowed_spaces.join(', ') }}]
+                </span>
+                <span v-if="t.expires_at" style="color: #64748b; margin-left: 6px">
+                  до {{ formatDateTime(t.expires_at) }}
+                </span>
+              </div>
+              <NButton size="tiny" type="error" ghost @click="revokePersonalMcpToken(t.id)">Отозвать</NButton>
+            </div>
+          </NSpace>
+        </div>
+      </NSpace>
     </NModal>
   </NLayout>
   </div>

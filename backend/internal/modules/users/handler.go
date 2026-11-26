@@ -496,6 +496,10 @@ func (h *Handler) createMyToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteMyToken(w http.ResponseWriter, r *http.Request) {
 	ac, _ := platform.AuthFromContext(r.Context())
+	if ac.IsToken {
+		platform.WriteError(w, h.logger, platform.NewForbidden("Управление токенами доступно только через пользовательскую сессию"))
+		return
+	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		platform.WriteError(w, h.logger, platform.NewValidation("Некорректный ID", nil))
