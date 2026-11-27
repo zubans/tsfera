@@ -223,8 +223,48 @@ const menuOptions = computed<MenuOption[]>(() => {
   ) {
     opts.push({ label: 'Табель и план', key: '/crm/timesheet' })
   }
-  if (auth.hasPerm('crm.contract.view') || auth.hasPerm('crm.task.view') || auth.hasPerm('crm.call.view')) {
-    opts.push({ label: 'Договоры, Задачи, Отчёты', key: '/crm/operations' })
+  if (auth.hasPerm('crm.contract.view')) {
+    opts.push({ label: 'Договоры ТО', key: '/crm/contracts' })
+  }
+  if (auth.hasPerm('crm.task.view')) {
+    opts.push({ label: 'Задачи', key: '/crm/tasks' })
+  }
+  if (auth.hasPerm('crm.call.view')) {
+    opts.push({ label: 'Звонки', key: '/crm/calls' })
+  }
+  if (
+    [
+      'crm.report.view',
+      'crm.report.sum_executor.view',
+      'crm.report.expired_tasks.view',
+      'crm.report.sum_subdivision.view',
+      'crm.report.amount_spare_parts.view',
+      'crm.report.call_conversion.view',
+      'crm.report.contractors.view',
+      'crm.report.engineers.view',
+      'crm.report.traffic_sources.view'
+    ].some((p) => auth.hasPerm(p))
+  ) {
+    opts.push({ label: 'Отчёты', key: '/crm/reports' })
+  }
+  if (
+    [
+      'crm.ref.manage',
+      'crm.equipment.view',
+      'crm.subdivision.view',
+      'crm.subdivision.manage',
+      'crm.sip.view',
+      'crm.sip.manage',
+      'crm.pool.view',
+      'crm.pool.manage',
+      'crm.banner.view',
+      'crm.banner.manage',
+      'crm.analytic.view',
+      'crm.analytic.manage',
+      'crm.traffic_source.manage'
+    ].some((p) => auth.hasPerm(p))
+  ) {
+    opts.push({ label: 'Справочники CRM', key: '/crm/settings' })
   }
   if (auth.hasPerm('docs.view')) {
     opts.push({ label: 'Документация и Регламенты', key: '/docs' })
@@ -331,7 +371,7 @@ async function handleLogout() {
             <div style="max-height: 340px; overflow: auto">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
                 <strong>Пул пропущенных звонков</strong>
-                <NButton text size="tiny" type="primary" @click="router.push('/crm/operations')">Журнал</NButton>
+                <NButton text size="tiny" type="primary" @click="router.push({ path: '/crm/calls', query: { tab: 'missed' } })">Журнал</NButton>
               </div>
               <NList v-if="realtime.missCalls.length" size="small" bordered>
                 <NListItem v-for="m in realtime.missCalls" :key="m.id">
@@ -360,7 +400,10 @@ async function handleLogout() {
               </NBadge>
             </template>
             <div style="max-height: 320px; overflow: auto">
-              <strong style="display: block; margin-bottom: 8px">Истекающий SLA по задачам</strong>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                <strong>Истекающий SLA по задачам</strong>
+                <NButton text size="tiny" type="primary" @click="router.push({ path: '/crm/tasks', query: { urgent: '1' } })">Все задачи</NButton>
+              </div>
               <NList v-if="realtime.urgentTasks.length" size="small" bordered>
                 <NListItem v-for="t in realtime.urgentTasks" :key="t.id">
                   <div>
@@ -579,16 +622,20 @@ async function handleLogout() {
   letter-spacing: 0.3px;
 }
 .app-header {
-  height: 56px;
-  padding: 0 16px;
+  min-height: 56px;
+  height: auto;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   background: #ffffff;
 }
 .header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 </style>

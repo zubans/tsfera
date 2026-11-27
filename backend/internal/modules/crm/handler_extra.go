@@ -120,6 +120,7 @@ func buildContractFilter(r *http.Request) (ContractFilter, error) {
 	onlyProlong := r.URL.Query().Get("only_needing_prolongation") == "true" ||
 		r.URL.Query().Get("only_needing_prolongation") == "1"
 	return ContractFilter{
+		Query:                   strings.TrimSpace(r.URL.Query().Get("q")),
 		ContractorID:            parseOptionalInt64(r.URL.Query().Get("contractor_id")),
 		AddressID:               parseOptionalInt64(r.URL.Query().Get("address_id")),
 		Status:                  status,

@@ -7,7 +7,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useRealtimeStore } from '@/stores/realtime'
 import CalendarView from '@/modules/crm/CalendarView.vue'
 import ContractorsView from '@/modules/crm/ContractorsView.vue'
-import ContractsAndTasksView from '@/modules/crm/ContractsAndTasksView.vue'
+import ContractsView from '@/modules/crm/ContractsView.vue'
+import TasksView from '@/modules/crm/TasksView.vue'
+import CallsView from '@/modules/crm/CallsView.vue'
+import CrmSettingsView from '@/modules/crm/CrmSettingsView.vue'
 import ApplicationsAndActsView from '@/modules/crm/ApplicationsAndActsView.vue'
 import CrmCatalogsPanel from '@/modules/crm/CrmCatalogsPanel.vue'
 import ReportsPanel from '@/modules/crm/ReportsPanel.vue'
@@ -22,7 +25,10 @@ function makeTestRouter(initialPath = '/crm/calendar') {
       { path: '/crm/calendar', component: CalendarView },
       { path: '/crm/applications', component: ApplicationsAndActsView },
       { path: '/crm/contractors', component: ContractorsView },
-      { path: '/crm/operations', component: ContractsAndTasksView },
+      { path: '/crm/contracts', component: ContractsView },
+      { path: '/crm/tasks', component: TasksView },
+      { path: '/crm/calls', component: CallsView },
+      { path: '/crm/settings', component: CrmSettingsView },
       { path: '/admin/users', component: UsersAdminView },
       { path: '/docs', component: DocsWorkspaceView },
       { path: '/chat', component: ChatWorkspaceView },
@@ -298,7 +304,7 @@ describe('Core UI Views integration specs', () => {
     expect(document.body.textContent).toContain('Иван Петров')
   })
 
-  it('ContractsAndTasksView renders task execute, call recording player, refs and report contracts_amount', async () => {
+  it('ContractsView, TasksView, CallsView and CrmSettingsView render human-readable data and lazy audio', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.includes('/api/v1/crm/contracts')) {
@@ -324,10 +330,21 @@ describe('Core UI Views integration specs', () => {
         return jsonResp([
           {
             id: 7,
-            task_type: 'call',
+            task_type: 'prolongation',
             title: 'Обзвон ТО',
             description: '',
             status: 1,
+            priority: 10,
+            plan_datetime_to: '2026-11-15T10:00:00Z',
+            is_urgent: false,
+            note: ''
+          },
+          {
+            id: 8,
+            task_type: 'quarterly_call',
+            title: 'Закрытая задача',
+            description: '',
+            status: 3,
             priority: 10,
             plan_datetime_to: '2026-11-15T10:00:00Z',
             is_urgent: false,
@@ -336,34 +353,33 @@ describe('Core UI Views integration specs', () => {
         ])
       }
       if (url.includes('/api/v1/crm/calls/current')) return jsonResp([])
+      if (url.includes('/api/v1/crm/miss-calls')) return jsonResp([])
       if (url.includes('/api/v1/crm/calls')) {
         return jsonResp([
           {
             id: 3,
             external_call_id: 'call-3',
             ext_tracking_id: 'rec-3',
-            direction: 'incoming',
+            direction: 'outbound',
             status: 'ended',
             caller_phone: '9992223344',
-            callee_phone: '8001002030',
-            type_of_appeal: 'consultation',
+            callee_phone: '2601035063',
+            type_of_appeal: 'import_10',
             duration_sec: 40,
             started_at: '2026-11-13T10:00:00Z'
           }
         ])
       }
-      if (url.includes('/api/v1/crm/reports/amount-acts')) {
+      if (url.includes('/api/v1/crm/refs/')) {
+        return jsonResp([{ id: 1, kind: 'manufacturer', name: 'Baxi', deleted: false, created_at: '2026-11-01T00:00:00Z' }])
+      }
+      if (url.includes('/api/v1/crm/subdivisions')) {
         return jsonResp([
           {
-            engineer_id: 2,
-            engineer_name: 'Сидоров И.',
-            subdivision_id: 1,
-            subdivision_name: 'Воронеж',
-            certificates_count: 4,
-            total_amount: 15000,
-            paid_amount: 12000,
-            debt_amount: 3000,
-            contracts_amount: 24000
+            id: 1,
+            name: 'Владимир',
+            address: '',
+            payment_options: [{ payment_option_id: 3, key: '', is_main: true }]
           }
         ])
       }
@@ -372,24 +388,55 @@ describe('Core UI Views integration specs', () => {
         return jsonResp({
           work_types: ['ТО'],
           document_statuses: [{ id: 1, label: 'Активна' }],
-          task_types: [{ id: 'call', label: 'Звонок' }],
-          task_statuses: [{ id: 1, label: 'Новая' }],
+          task_types: [
+            { id: 'prolongation', label: 'Пролонгация договора' },
+            { id: 'quarterly_call', label: 'Ежеквартальный обзвон' }
+          ],
+          task_statuses: [
+            { id: 1, label: 'Новая' },
+            { id: 3, label: 'Выполнена' }
+          ],
           contract_categories: [{ id: 2, key: 'plus', label: 'Плюс' }],
+          payment_options: [{ id: 3, key: 'bank_transfer', label: 'Безналичный расчёт' }],
           task_results: [{ id: 1, key: 'answered', label: 'Дозвонились / Выполнено' }],
-          call_types_of_appeal: [{ id: 2, key: 'consultation', label: 'Консультация' }]
+          call_types_of_appeal: [{ id: 1010, key: 'import_10', label: 'Услуга (перенесено)' }]
         })
       }
       return jsonResp([])
     })
 
-    const router = makeTestRouter('/crm/operations?tab=contracts')
+    const router = makeTestRouter('/crm/contracts')
     await router.isReady()
-    const wrapper = mount(ContractsAndTasksView, { global: { plugins: [router] } })
+    const contractsWrap = mount(ContractsView, { global: { plugins: [router] } })
     await flushPromises()
+    expect(contractsWrap.text()).toContain('Д-100')
+    expect(contractsWrap.text()).toContain('Плюс')
 
-    expect(wrapper.text()).toContain('Д-100')
-    expect(wrapper.text()).toContain('Плюс')
-    expect(wrapper.text()).toContain('Справочники')
+    const tasksWrap = mount(TasksView, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(tasksWrap.text()).toContain('Пролонгация договора')
+    expect(tasksWrap.text()).not.toContain('prolongation')
+    const executeBtns = tasksWrap.findAll('button').filter((b) => b.text().trim() === 'Выполнить')
+    expect(executeBtns.length).toBe(1)
+
+    const callsWrap = mount(CallsView, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(callsWrap.text()).toContain('Исх.')
+    expect(callsWrap.text()).toContain('Завершён')
+    expect(callsWrap.text()).toContain('Услуга')
+    expect(callsWrap.text()).toContain('ВАТС 2601035063')
+    expect(callsWrap.text()).not.toContain('+7 (260)')
+    expect(callsWrap.find('audio').exists()).toBe(false)
+    const playBtn = callsWrap.findAll('button').find((b) => b.text().includes('Слушать'))
+    expect(playBtn).toBeDefined()
+    await playBtn!.trigger('click')
+    await flushPromises()
+    expect(callsWrap.find('audio').exists()).toBe(true)
+
+    const settingsWrap = mount(CrmSettingsView, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(settingsWrap.text()).toContain('Baxi')
+    expect(settingsWrap.text()).toContain('Справочники')
   })
 
   it('ApplicationsAndActsView triggers complete application and UsersAdminView loads inventory catalogs', async () => {

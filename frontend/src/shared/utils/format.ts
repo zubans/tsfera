@@ -1,8 +1,50 @@
+export function isRussianPhone(raw: string): boolean {
+  const digits = (raw || '').replace(/\D/g, '')
+  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
+    return /^[3489]/.test(digits.slice(1))
+  }
+  if (digits.length === 10) {
+    return /^[3489]/.test(digits)
+  }
+  return false
+}
+
 export function formatPhoneRU(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  const ten = digits.length >= 10 ? digits.slice(-10) : digits
-  if (ten.length !== 10) return raw
+  const trimmed = (raw || '').trim()
+  if (!trimmed) return '—'
+  const digits = trimmed.replace(/\D/g, '')
+  let ten = ''
+  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8')) && /^[3489]/.test(digits.slice(1))) {
+    ten = digits.slice(1)
+  } else if (digits.length === 10 && /^[3489]/.test(digits)) {
+    ten = digits
+  } else {
+    return trimmed
+  }
   return `+7 (${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6, 8)}-${ten.slice(8, 10)}`
+}
+
+export function formatDurationSec(sec?: number | null): string {
+  if (!sec || sec <= 0) return '—'
+  const s = Math.floor(sec)
+  if (s < 60) return `${s} с`
+  const m = Math.floor(s / 60)
+  const remS = s % 60
+  if (m < 60) return `${m}:${String(remS).padStart(2, '0')}`
+  const h = Math.floor(m / 60)
+  const remM = m % 60
+  return `${h} ч ${String(remM).padStart(2, '0')} м`
+}
+
+export function formatDateRangeParam(range: [number, number] | null): string {
+  if (!range || range.length !== 2) return ''
+  const fmt = (ts: number) => {
+    const d = new Date(ts)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    return `${dd}.${mm}.${d.getFullYear()}`
+  }
+  return `${fmt(range[0])} - ${fmt(range[1])}`
 }
 
 export function formatMoneyRUB(value: number): string {

@@ -816,6 +816,22 @@ func (r *PgRepository) CreateRefItem(ctx context.Context, item *RefItem) error {
 	`, item.Kind, item.Name).Scan(&item.ID, &item.Deleted, &item.CreatedAt)
 }
 
+func (r *PgRepository) UpdateRefItem(ctx context.Context, id int64, kind, name string) (*RefItem, error) {
+	var item RefItem
+	err := r.db.QueryRow(ctx, `
+		UPDATE crm_ref_items SET name = $1
+		WHERE id = $2 AND kind = $3 AND deleted = FALSE
+		RETURNING id, kind, name, deleted, created_at
+	`, name, id, kind).Scan(&item.ID, &item.Kind, &item.Name, &item.Deleted, &item.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (r *PgRepository) SoftDeleteRefItem(ctx context.Context, id int64) error {
 	return platform.ExecExpectingOne(ctx, r.db, `
 		UPDATE crm_ref_items SET deleted = TRUE
@@ -866,11 +882,16 @@ func scanContract(row pgx.Row) (*MaintenanceContract, error) {
 }
 
 func (r *PgRepository) ListContracts(ctx context.Context, f ContractFilter) ([]MaintenanceContract, error) {
-	limit := normalizeLimit(f.Limit, 50, 200)
+	limit := normalizeLimit(f.Limit, 50, 500)
 	offset := max(0, f.Offset)
 	where := []string{"mc.deleted = FALSE"}
 	args := []any{}
 	idx := 1
+	if q := strings.TrimSpace(f.Query); q != "" {
+		where = append(where, fmt.Sprintf("(mc.number ILIKE '%%' || $%d || '%%' OR c.name ILIKE '%%' || $%d || '%%' OR ca.address ILIKE '%%' || $%d || '%%')", idx, idx, idx))
+		args = append(args, q)
+		idx++
+	}
 	if f.ContractorID != nil {
 		where = append(where, fmt.Sprintf("mc.contractor_id = $%d", idx))
 		args = append(args, *f.ContractorID)
@@ -904,7 +925,8 @@ func (r *PgRepository) ListContracts(ctx context.Context, f ContractFilter) ([]M
 		)`)
 	}
 	args = append(args, limit, offset)
-	sql := fmt.Sprintf("%s WHERE %s ORDER BY mc.valid_to DESC, mc.id DESC LIMIT $%d OFFSET $%d",
+	// Аномально далёкие даты окончания (опечатки года вроде 3024/4203) уводим в конец списка.
+	sql := fmt.Sprintf("%s WHERE %s ORDER BY (mc.valid_to > CURRENT_DATE + INTERVAL '10 years') ASC, mc.valid_to DESC, mc.id DESC LIMIT $%d OFFSET $%d",
 		selectContractSQL, strings.Join(where, " AND "), idx, idx+1)
 	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
@@ -1598,11 +1620,16 @@ const selectTaskSQL = `
 `
 
 func (r *PgRepository) ListTasks(ctx context.Context, f TaskFilter) ([]Task, error) {
-	limit := normalizeLimit(f.Limit, 50, 200)
+	limit := normalizeLimit(f.Limit, 50, 500)
 	offset := max(0, f.Offset)
 	where := []string{"t.deleted = FALSE"}
 	args := []any{}
 	idx := 1
+	if q := strings.TrimSpace(f.Query); q != "" {
+		where = append(where, fmt.Sprintf("(t.title ILIKE '%%' || $%d || '%%' OR t.description ILIKE '%%' || $%d || '%%' OR COALESCE(c.name, '') ILIKE '%%' || $%d || '%%' OR CAST(t.id AS TEXT) ILIKE '%%' || $%d || '%%')", idx, idx, idx, idx))
+		args = append(args, q)
+		idx++
+	}
 	if f.AssignedUserID != nil {
 		where = append(where, fmt.Sprintf("t.assigned_user_id = $%d", idx))
 		args = append(args, *f.AssignedUserID)

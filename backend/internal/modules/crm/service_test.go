@@ -519,6 +519,17 @@ func (m *memRepo) CreateRefItem(_ context.Context, item *RefItem) error {
 	m.refItems[item.ID] = &cp
 	return nil
 }
+func (m *memRepo) UpdateRefItem(_ context.Context, id int64, kind, name string) (*RefItem, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item, ok := m.refItems[id]
+	if !ok || item.Deleted || item.Kind != kind {
+		return nil, nil
+	}
+	item.Name = name
+	cp := *item
+	return &cp, nil
+}
 func (m *memRepo) SoftDeleteRefItem(_ context.Context, id int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
