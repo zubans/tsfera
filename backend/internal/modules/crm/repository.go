@@ -142,6 +142,7 @@ type Repository interface {
 
 	// Equipment & References
 	ListEquipments(ctx context.Context, query string, limit int) ([]Equipment, error)
+	GetEquipmentsByIDs(ctx context.Context, ids []int64) ([]Equipment, error)
 	CreateEquipment(ctx context.Context, eq *Equipment) error
 	UpdateEquipment(ctx context.Context, eq *Equipment) error
 	AttachAddressEquipment(ctx context.Context, ae *AddressEquipment) error

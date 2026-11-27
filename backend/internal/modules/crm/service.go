@@ -1814,11 +1814,10 @@ func (s *Service) ResolveEntity(ctx context.Context, auth *platform.AuthContext,
 		if len(c.Addresses) > 0 {
 			b.WriteString("## Адреса и оборудование\n")
 			for _, a := range c.Addresses {
-				fmt.Fprintf(&b, "- **%s**", a.Address)
+				fmt.Fprintf(&b, "- **%s** (#%d)\n", a.Address, a.ID)
 				for _, eq := range a.Equipments {
-					fmt.Fprintf(&b, " | %s (S/N: %s)", eq.EquipmentName, eq.SerialNumber)
+					fmt.Fprintf(&b, "  - %s (S/N: %s)\n", eq.EquipmentName, fallbackStr(eq.SerialNumber, "—"))
 				}
-				b.WriteString("\n")
 			}
 		}
 		return &platform.EntitySummary{
@@ -1834,13 +1833,7 @@ func (s *Service) ResolveEntity(ctx context.Context, auth *platform.AuthContext,
 		if err != nil {
 			return nil, err
 		}
-		md := fmt.Sprintf(
-			"# Заявка #%d (%s)\n- Контрагент: %s (#%d)\n- Адрес: %s\n- Инженер: %s (#%d)\n- План: %s — %s\n- Виды работ: %s\n- Комментарий: %s\n- Особые отметки: %s\n",
-			app.ID, app.Status.Label(), app.ContractorName, app.ContractorID, app.AddressText,
-			app.EngineerName, app.EngineerID,
-			app.PlanDatetimeFrom.Format("02.01.2006 15:04"), app.PlanDatetimeTo.Format("15:04"),
-			strings.Join(app.WorkTypes, ", "), app.Comment, app.SpecialNotes,
-		)
+		md := s.buildApplicationContextMarkdown(ctx, auth, app)
 		return &platform.EntitySummary{
 			EntityType: "application",
 			EntityID:   app.ID,
