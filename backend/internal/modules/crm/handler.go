@@ -66,6 +66,7 @@ func (h *Handler) Mount(r chi.Router) {
 			cr.With(platform.RequirePermission("crm.address.update")).Delete("/address-equipments/{id}", h.detachAddressEquipment)
 			cr.Get("/refs/{kind}", h.listRefItems)
 			cr.Post("/refs/{kind}", h.createRefItem)
+			cr.Put("/refs/{kind}/{id}", h.updateRefItem)
 			cr.Delete("/refs/{kind}/{id}", h.deleteRefItem)
 
 			// Источники трафика
@@ -581,6 +582,28 @@ func (h *Handler) createRefItem(w http.ResponseWriter, r *http.Request) {
 	platform.WriteJSON(w, http.StatusCreated, out)
 }
 
+func (h *Handler) updateRefItem(w http.ResponseWriter, r *http.Request) {
+	ac, _ := platform.AuthFromContext(r.Context())
+	id, err := parseIDParam(r, "id")
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := platform.DecodeJSON(r, &in); err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	out, err := h.svc.UpdateRefItem(r.Context(), ac, chi.URLParam(r, "kind"), id, in.Name)
+	if err != nil {
+		platform.WriteError(w, h.logger, err)
+		return
+	}
+	platform.WriteJSON(w, http.StatusOK, out)
+}
+
 func (h *Handler) deleteRefItem(w http.ResponseWriter, r *http.Request) {
 	ac, _ := platform.AuthFromContext(r.Context())
 	id, err := parseIDParam(r, "id")
@@ -961,6 +984,7 @@ func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 		taskType = &ttVal
 	}
 	items, err := h.svc.ListTasks(r.Context(), ac, TaskFilter{
+		Query:          strings.TrimSpace(r.URL.Query().Get("q")),
 		AssignedUserID: parseOptionalInt64(r.URL.Query().Get("assigned_user_id")),
 		SubdivisionID:  parseOptionalInt64(r.URL.Query().Get("subdivision_id")),
 		ContractorID:   parseOptionalInt64(r.URL.Query().Get("contractor_id")),

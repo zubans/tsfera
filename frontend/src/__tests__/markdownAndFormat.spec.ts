@@ -53,9 +53,10 @@ describe('markdown & outline helpers', () => {
 })
 
 describe('format helpers', () => {
-  it('formats 10-digit and 11-digit Russian phone numbers uniformly', () => {
+  it('formats 10-digit and 11-digit Russian phone numbers uniformly without mangling VATS IDs', () => {
     expect(formatPhoneRU('9991234567')).toBe('+7 (999) 123-45-67')
     expect(formatPhoneRU('89991234567')).toBe('+7 (999) 123-45-67')
+    expect(formatPhoneRU('2601035063')).toBe('2601035063')
     expect(formatPhoneRU('123')).toBe('123')
   })
 

@@ -620,9 +620,8 @@ onMounted(async () => {
               secondary
               @click="
                 router.push({
-                  path: '/crm/operations',
+                  path: '/crm/contracts',
                   query: {
-                    tab: 'contracts',
                     contractorId: String(selected.id),
                     addressId: selected.addresses?.[0]?.id ? String(selected.addresses[0].id) : undefined
                   }

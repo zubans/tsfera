@@ -665,6 +665,31 @@ func (s *Service) CreateRefItem(ctx context.Context, auth *platform.AuthContext,
 	return item, nil
 }
 
+func (s *Service) UpdateRefItem(ctx context.Context, auth *platform.AuthContext, kind string, id int64, name string) (*RefItem, error) {
+	kind = strings.TrimSpace(kind)
+	name = strings.TrimSpace(name)
+	if !isValidRefKind(kind) {
+		return nil, platform.NewValidation("Неизвестный тип справочника", map[string]string{"kind": "Неверное значение"})
+	}
+	if auth != nil {
+		if err := requireCapability(auth, "crm.ref.manage", "crm.ref."+kind+".update"); err != nil {
+			return nil, err
+		}
+	}
+	if name == "" {
+		return nil, platform.NewValidation("Название записи справочника обязательно", map[string]string{"name": "Обязательное поле"})
+	}
+	item, err := s.repo.UpdateRefItem(ctx, id, kind, name)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, platform.NewNotFound("Запись справочника не найдена")
+	}
+	s.logChange(ctx, auth, "ref_"+kind, item.ID, "update", item)
+	return item, nil
+}
+
 func (s *Service) DeleteRefItem(ctx context.Context, auth *platform.AuthContext, id int64) error {
 	if auth != nil && !auth.HasPermission("crm.ref.manage") {
 		allowed := false

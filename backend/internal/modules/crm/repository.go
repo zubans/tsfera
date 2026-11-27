@@ -59,6 +59,7 @@ type CertificateFilter struct {
 }
 
 type TaskFilter struct {
+	Query          string
 	AssignedUserID *int64
 	SubdivisionID  *int64
 	Status         *TaskStatus
@@ -70,6 +71,7 @@ type TaskFilter struct {
 }
 
 type ContractFilter struct {
+	Query                   string
 	ContractorID            *int64
 	AddressID               *int64
 	Status                  *DocumentStatus
@@ -149,6 +151,7 @@ type Repository interface {
 	SoftDeleteAddressEquipment(ctx context.Context, id int64) error
 	ListRefItems(ctx context.Context, kind string) ([]RefItem, error)
 	CreateRefItem(ctx context.Context, item *RefItem) error
+	UpdateRefItem(ctx context.Context, id int64, kind, name string) (*RefItem, error)
 	SoftDeleteRefItem(ctx context.Context, id int64) error
 
 	// Contracts
