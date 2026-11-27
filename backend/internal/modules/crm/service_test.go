@@ -463,6 +463,17 @@ func (m *memRepo) SearchAddresses(context.Context, *int64, string, int) ([]Contr
 func (m *memRepo) ListEquipments(context.Context, string, int) ([]Equipment, error) {
 	return nil, nil
 }
+func (m *memRepo) GetEquipmentsByIDs(_ context.Context, ids []int64) ([]Equipment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Equipment
+	for _, id := range ids {
+		if eq, ok := m.equipments[id]; ok && eq != nil {
+			out = append(out, *eq)
+		}
+	}
+	return out, nil
+}
 func (m *memRepo) CreateEquipment(_ context.Context, eq *Equipment) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -79,9 +79,21 @@ func (r *PgRepository) ListDocuments(ctx context.Context, f DocumentFilter) ([]D
 		idx++
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
-		where = append(where, fmt.Sprintf("(title ILIKE '%%' || $%d || '%%' OR content ILIKE '%%' || $%d || '%%')", idx, idx))
-		args = append(args, q)
-		idx++
+		tokens := splitModelSearchTokens(q)
+		if len(tokens) == 0 {
+			where = append(where, fmt.Sprintf("(title ILIKE '%%' || $%d || '%%' OR content ILIKE '%%' || $%d || '%%')", idx, idx))
+			args = append(args, q)
+			idx++
+		} else {
+			for _, tok := range tokens {
+				where = append(where, fmt.Sprintf(
+					"(title ILIKE '%%' || $%d || '%%' OR content ILIKE '%%' || $%d || '%%' OR replace(replace(replace(title, '-', ''), '_', ''), ' ', '') ILIKE '%%' || $%d || '%%')",
+					idx, idx, idx,
+				))
+				args = append(args, tok)
+				idx++
+			}
+		}
 	}
 
 	args = append(args, limit, offset)
@@ -705,9 +717,21 @@ func (r *PgRepository) SearchBoilerParts(ctx context.Context, f BoilerPartFilter
 		idx++
 	}
 	if s := strings.TrimSpace(f.Model); s != "" {
-		where = append(where, fmt.Sprintf("(bp.boiler_model ILIKE '%%' || $%d || '%%' OR d.title ILIKE '%%' || $%d || '%%')", idx, idx))
-		args = append(args, normalizeBlueprintText(s))
-		idx++
+		tokens := splitModelSearchTokens(s)
+		if len(tokens) == 0 {
+			where = append(where, fmt.Sprintf("(bp.boiler_model ILIKE '%%' || $%d || '%%' OR d.title ILIKE '%%' || $%d || '%%')", idx, idx))
+			args = append(args, normalizeBlueprintText(s))
+			idx++
+		} else {
+			for _, tok := range tokens {
+				where = append(where, fmt.Sprintf(
+					"(bp.boiler_model ILIKE '%%' || $%d || '%%' OR d.title ILIKE '%%' || $%d || '%%' OR replace(replace(replace(d.title, '-', ''), '_', ''), ' ', '') ILIKE '%%' || $%d || '%%' OR d.content ILIKE '%%' || $%d || '%%')",
+					idx, idx, idx, idx,
+				))
+				args = append(args, tok)
+				idx++
+			}
+		}
 	}
 	if s := strings.TrimSpace(f.PartNumber); s != "" {
 		where = append(where, fmt.Sprintf("(bp.part_number ILIKE '%%' || $%d || '%%' OR bp.replaced_by ILIKE '%%' || $%d || '%%')", idx, idx))

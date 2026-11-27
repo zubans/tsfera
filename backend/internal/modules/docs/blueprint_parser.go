@@ -56,6 +56,7 @@ var (
 	reYearRangeSuffix      = regexp.MustCompile(`\s+(?:19|20)\d{2}(?:\s*-\s*(?:19|20)\d{2})?$`)
 	reCalloutOnlyLine      = regexp.MustCompile(`^\d{1,3}[a-zA-Z]?(?:\s+\d{1,3}[a-zA-Z]?){0,3}$`)
 	reMultiColPartEntry    = regexp.MustCompile(`(?:^|\s)(?:(\d{1,2}|X)\s+)?(00\d{8})\s+`)
+	reMonthYearOnlyLine    = regexp.MustCompile(`(?i)^[-\s]*(?:january|february|march|april|may|june|july|august|september|october|november|december|январ\p{L}*|феврал\p{L}*|март\p{L}*|апрел\p{L}*|ма[йя]|июн\p{L}*|июл\p{L}*|август\p{L}*|сентябр\p{L}*|октябр\p{L}*|ноябр\p{L}*|декабр\p{L}*)\s+(?:19|20)\d{2}[-\s]*$`)
 )
 
 // normalizeBlueprintText приводит неразрывные пробелы и типографские дефисы к стандартным символам.
@@ -115,7 +116,9 @@ func DetectBoilerModel(filename string, pages []string) string {
 			}
 			low := strings.ToLower(line)
 			if low == "содержание" || low == "обзор узлов" || strings.HasPrefix(low, "каталог ") ||
-				strings.HasPrefix(low, "газовый ") || strings.HasPrefix(low, "напольный ") {
+				strings.HasPrefix(low, "газовый ") || strings.HasPrefix(low, "напольный ") ||
+				strings.Contains(low, "spare parts catalogue") || strings.Contains(low, "spare parts catalog") ||
+				reMonthYearOnlyLine.MatchString(line) {
 				continue
 			}
 			// Типовой заголовок модели на чертежах (например: "VK INT 246", "VK 36/4-1 XE", "VSC 266/4-5 200").
@@ -150,8 +153,10 @@ func isPartsTableHeaderLine(line string) bool {
 		(strings.Contains(low, "material no") || strings.Contains(low, "артикул") || strings.Contains(low, "код") || strings.Contains(low, "описание")) {
 		return true
 	}
-	if strings.Contains(low, "pos.") &&
-		(strings.Contains(low, "material no") || strings.Contains(low, "part no") || strings.Contains(low, "art.")) {
+	trimmedLow := strings.TrimSpace(low)
+	if (strings.Contains(low, "pos.") || strings.HasPrefix(trimmedLow, "pos ") || strings.HasPrefix(trimmedLow, "pos\t")) &&
+		(strings.Contains(low, "material no") || strings.Contains(low, "part no") || strings.Contains(low, "art.") ||
+			(strings.Contains(low, "code") && strings.Contains(low, "description"))) {
 		return true
 	}
 	// Формат каталогов Protherm: "№ | № для заказа | Название" (иногда "заказа" перенесено на следующую строку).
@@ -345,7 +350,7 @@ func parsePartsTablePage(
 	for i := headerIdx + 1; i < len(lines); i++ {
 		raw := lines[i]
 		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" || rePageFooter.MatchString(trimmed) {
+		if trimmed == "" || rePageFooter.MatchString(trimmed) || isPartsTableHeaderLine(raw) {
 			continue
 		}
 
@@ -368,7 +373,7 @@ func parsePartsTablePage(
 
 	for i := range parts {
 		parts[i].Name = cleanInlineSpaces(parts[i].Name)
-		parts[i].Notes = cleanInlineSpaces(parts[i].Notes)
+		parts[i].Notes = cleanMatrixNote(parts[i].Notes)
 		if parts[i].ReplacedBy == "" && parts[i].Notes != "" {
 			if m := reReplacedBy.FindStringSubmatch(parts[i].Notes); len(m) == 2 {
 				parts[i].ReplacedBy = strings.TrimRight(m[1], ".,;)")
@@ -679,4 +684,114 @@ func containsAny(s string, subs ...string) bool {
 		}
 	}
 	return false
+}
+
+// cleanMatrixNote убирает маркеры применяемости («•») из таблиц-матриц BAXI, сохраняя серийные номера и текстовые пометки.
+func cleanMatrixNote(s string) string {
+	cleaned := strings.ReplaceAll(s, "•", " ")
+	return cleanInlineSpaces(cleaned)
+}
+
+// splitSearchTokens разбивает поисковый запрос на отдельные слова/коды, игнорируя дефисы, подчёркивания и пунктуацию,
+// чтобы «baxi eco four» и «BAXI EcoFour 24 F» находили документы с заголовками вроде «BAXI — eco-four-katalog...».
+func splitSearchTokens(q string) []string {
+	norm := strings.ToLower(normalizeBlueprintText(q))
+	fields := strings.FieldsFunc(norm, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	seen := make(map[string]bool, len(fields))
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if f == "" || seen[f] {
+			continue
+		}
+		seen[f] = true
+		out = append(out, f)
+	}
+	return out
+}
+
+var genericEquipmentWords = map[string]bool{
+	"котел":           true,
+	"котёл":           true,
+	"котлы":           true,
+	"бойлер":          true,
+	"бойлеры":         true,
+	"водонагреватель": true,
+	"газовый":         true,
+	"настенный":       true,
+	"напольный":       true,
+	"электрический":   true,
+	"конденсационный": true,
+	"двухконтурный":   true,
+	"одноконтурный":   true,
+	"чугунный":        true,
+}
+
+// splitModelSearchTokens разбивает название модели/запрос на токены и убирает общие русские слова типа оборудования
+// («Котел», «бойлер» и т.п.), которые приходят из CRM и мешают находить англоязычные каталоги.
+func splitModelSearchTokens(q string) []string {
+	tokens := splitSearchTokens(q)
+	if len(tokens) <= 1 {
+		return tokens
+	}
+	filtered := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		if !genericEquipmentWords[t] {
+			filtered = append(filtered, t)
+		}
+	}
+	if len(filtered) == 0 {
+		return tokens
+	}
+	return filtered
+}
+
+// ExpandPartQuerySynonyms расширяет русский запрос по запчасти до англоязычных терминов каталогов (BAXI, Vaillant, Bosch и др.) и обратно.
+func ExpandPartQuerySynonyms(query string) []string {
+	low := strings.ToLower(normalizeBlueprintText(query))
+	if low == "" {
+		return nil
+	}
+	synonymGroups := []struct {
+		triggers []string
+		aliases  []string
+	}{
+		{[]string{"плат", "модуль управлен", "электронн"}, []string{"pcb", "board", "electronic", "контроллер"}},
+		{[]string{"pcb", "control board"}, []string{"плата", "электронная плата"}},
+		{[]string{"насос"}, []string{"pump", "circulator"}},
+		{[]string{"pump"}, []string{"насос"}},
+		{[]string{"трехходов", "трёхходов", "переключающ"}, []string{"3-way", "three-way", "diverter", "motor"}},
+		{[]string{"предохранител"}, []string{"safety valve", "relief", "fuse"}},
+		{[]string{"газов"}, []string{"gas valve"}},
+		{[]string{"клапан"}, []string{"valve"}},
+		{[]string{"valve"}, []string{"клапан", "арматура"}},
+		{[]string{"теплообменник"}, []string{"exchanger", "heat exch"}},
+		{[]string{"exchanger"}, []string{"теплообменник"}},
+		{[]string{"вентилятор", "турбин"}, []string{"fan", "blower"}},
+		{[]string{"прессостат", "пневмореле", "датчик тяг"}, []string{"pressure switch", "air switch", "pressostat"}},
+		{[]string{"датчик", "зонд", "ntc"}, []string{"sensor", "probe", "ntc"}},
+		{[]string{"горелк"}, []string{"burner"}},
+		{[]string{"электрод", "розжиг", "ионизац"}, []string{"electrode", "ignition", "igniter"}},
+		{[]string{"расширительн", "бак"}, []string{"expansion", "vessel", "tank"}},
+		{[]string{"манометр"}, []string{"manometer", "gauge", "pressure gauge"}},
+		{[]string{"термостат"}, []string{"thermostat"}},
+		{[]string{"воздухоотводчик"}, []string{"air vent", "vent"}},
+		{[]string{"кран подпитк", "подпитк"}, []string{"filling", "tap", "cock"}},
+		{[]string{"дисплей", "панел"}, []string{"display", "control panel", "keyboard"}},
+	}
+
+	seen := map[string]bool{low: true}
+	var out []string
+	for _, g := range synonymGroups {
+		if containsAny(low, g.triggers...) {
+			for _, a := range g.aliases {
+				if !seen[a] {
+					seen[a] = true
+					out = append(out, a)
+				}
+			}
+		}
+	}
+	return out
 }

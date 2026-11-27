@@ -731,6 +731,30 @@ func (r *PgRepository) ListEquipments(ctx context.Context, query string, limit i
 	return out, rows.Err()
 }
 
+func (r *PgRepository) GetEquipmentsByIDs(ctx context.Context, ids []int64) ([]Equipment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, type, model, manufacturer, name, created_at, updated_at
+		FROM crm_equipments
+		WHERE id = ANY($1)
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Equipment
+	for rows.Next() {
+		var e Equipment
+		if err := rows.Scan(&e.ID, &e.Type, &e.Model, &e.Manufacturer, &e.Name, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 func (r *PgRepository) CreateEquipment(ctx context.Context, eq *Equipment) error {
 	return r.db.QueryRow(ctx, `
 		INSERT INTO crm_equipments (type, model, manufacturer, name)

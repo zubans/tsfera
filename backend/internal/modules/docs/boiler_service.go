@@ -98,6 +98,32 @@ func (s *Service) SearchBoilerParts(ctx context.Context, auth *platform.AuthCont
 	if err != nil {
 		return nil, err
 	}
+	// Если запрос по запчасти задан по-русски (например «плата»), а каталог на английском («PCB»),
+	// дополняем выдачу поиском по синонимам терминов каталогов.
+	if q := strings.TrimSpace(f.Query); q != "" && len(raw) < f.Limit {
+		seen := make(map[int64]bool, len(raw))
+		for _, p := range raw {
+			seen[p.ID] = true
+		}
+		for _, alt := range ExpandPartQuerySynonyms(q) {
+			if len(raw) >= f.Limit {
+				break
+			}
+			altFilter := f
+			altFilter.Query = alt
+			altFilter.Limit = f.Limit - len(raw)
+			more, moreErr := s.repo.SearchBoilerParts(ctx, altFilter)
+			if moreErr != nil {
+				continue
+			}
+			for _, p := range more {
+				if !seen[p.ID] {
+					seen[p.ID] = true
+					raw = append(raw, p)
+				}
+			}
+		}
+	}
 	// Фильтруем результаты по правам доступа к родительскому документу (с кэшированием в рамках вызова).
 	allowed := map[int64]bool{}
 	out := make([]BoilerPart, 0, len(raw))

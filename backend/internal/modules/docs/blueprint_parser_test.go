@@ -314,3 +314,109 @@ func TestBoilerToolsDiagnoseAndHTTP(t *testing.T) {
 		t.Fatalf("GET /boiler-parts body missing expected part number: %s", rec.Body.String())
 	}
 }
+
+func TestParseBaxiEnglishCatalogAndSearchSynonyms(t *testing.T) {
+	pages := []string{
+		"SPARE PARTS CATALOGUE\n- June 2017 -\nBAXI S.p.A.\n",
+		"Pos     Code              Description code\n" +
+			"154   5702450     PCB GROUP BERT&PART HDIMS 02        •       •       •\n" +
+			"Pos     Code              Description code\n" +
+			"154   710825300   PCB SM11469                         •       •       1607\n" +
+			"169   9951650     MANOMETER D.40                      •       •\n",
+	}
+
+	meta := ParseBoilerBlueprint("eco-four-katalog-zapchastey-ot-iyun-2017-_eng.pdf", pages, nil)
+	if meta.Brand != "BAXI" {
+		t.Fatalf("Brand = %q, want BAXI", meta.Brand)
+	}
+	if strings.Contains(strings.ToLower(meta.Model), "june") {
+		t.Fatalf("Model should skip date-only title line, got %q", meta.Model)
+	}
+	if len(meta.Parts) != 3 {
+		t.Fatalf("len(Parts) = %d, want 3 (parts=%+v)", len(meta.Parts), meta.Parts)
+	}
+	if meta.Parts[0].PartNumber != "5702450" || meta.Parts[0].Name != "PCB GROUP BERT&PART HDIMS 02" || meta.Parts[0].Notes != "" {
+		t.Fatalf("part[0] = %+v", meta.Parts[0])
+	}
+	if meta.Parts[1].PartNumber != "710825300" || meta.Parts[1].Notes != "1607" {
+		t.Fatalf("part[1] = %+v", meta.Parts[1])
+	}
+
+	tokens := splitSearchTokens("BAXI — eco-four 24 F")
+	wantTokens := []string{"baxi", "eco", "four", "24", "f"}
+	if len(tokens) != len(wantTokens) {
+		t.Fatalf("splitSearchTokens = %v, want %v", tokens, wantTokens)
+	}
+	for i := range wantTokens {
+		if tokens[i] != wantTokens[i] {
+			t.Fatalf("splitSearchTokens[%d] = %q, want %q", i, tokens[i], wantTokens[i])
+		}
+	}
+
+	syns := ExpandPartQuerySynonyms("плата управления")
+	foundPCB := false
+	for _, s := range syns {
+		if s == "pcb" {
+			foundPCB = true
+			break
+		}
+	}
+	if !foundPCB {
+		t.Fatalf("ExpandPartQuerySynonyms(плата управления) = %v, expected pcb", syns)
+	}
+
+	// «трехходовой клапан» должен ставить 3-way первым и НЕ подмешивать gas valve.
+	valveSyns := ExpandPartQuerySynonyms("трехходовой клапан")
+	if len(valveSyns) == 0 || valveSyns[0] != "3-way" {
+		t.Fatalf("ExpandPartQuerySynonyms(трехходовой клапан) = %v, expected 3-way first", valveSyns)
+	}
+	for _, s := range valveSyns {
+		if s == "gas valve" {
+			t.Fatalf("ExpandPartQuerySynonyms(трехходовой клапан) should not include gas valve: %v", valveSyns)
+		}
+	}
+
+	// splitModelSearchTokens должен убирать общие слова «Котел» и «бойлер» из CRM-названий.
+	modelTokens := splitModelSearchTokens("Котел бойлер Protherm FE 200 BM БОЙЛЕР")
+	for _, tok := range modelTokens {
+		if tok == "котел" || tok == "бойлер" {
+			t.Fatalf("splitModelSearchTokens kept generic word %q: %v", tok, modelTokens)
+		}
+	}
+
+	// Проверяем, что SearchBoilerParts находит англоязычный PCB по русскому запросу «плата».
+	now := time.Date(2026, 11, 27, 8, 0, 0, 0, time.UTC)
+	repo := newMemDocsRepo(func() time.Time { return now })
+	mod := NewModule(repo, nil, fakeEntityResolver{}, nil, t.TempDir(), nil)
+	ctx := context.Background()
+	admin := &platform.AuthContext{
+		UserID:       1,
+		Username:     "admin",
+		IsSuperAdmin: true,
+		Permissions:  map[string]bool{"docs.view": true, "docs.create": true, "docs.update": true},
+	}
+	doc, err := mod.Service.CreateDocument(ctx, admin, SaveDocumentInput{
+		Space:   "equipment",
+		DocType: DocTypeEquipmentManual,
+		Title:   "BAXI — eco-four-katalog-zapchastey-ot-iyun-2017-_eng",
+		Content: "ECOFOUR 24 F",
+		Status:  "published",
+	})
+	if err != nil {
+		t.Fatalf("create doc: %v", err)
+	}
+	if err := repo.ReplaceBoilerParts(ctx, doc.ID, meta.Parts); err != nil {
+		t.Fatalf("replace boiler parts: %v", err)
+	}
+	found, err := mod.Service.SearchBoilerParts(ctx, admin, BoilerPartFilter{
+		Brand: "BAXI",
+		Query: "плата",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("SearchBoilerParts error: %v", err)
+	}
+	if len(found) < 2 {
+		t.Fatalf("expected >=2 PCB parts for query=плата, got %d (%+v)", len(found), found)
+	}
+}
